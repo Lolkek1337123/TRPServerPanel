@@ -1,0 +1,2317 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <script>
+        if (window.self !== window.top) {
+            document.documentElement.classList.add('in-iframe');
+            document.addEventListener('DOMContentLoaded', () => {
+                document.body.classList.add('in-iframe');
+            });
+            
+            // Inside iframe we MUST use window.parent.postMessage wrapper to send messages to C#,
+            // and we MUST override/mock window.chrome.webview to route through window.parent.
+            const target = new EventTarget();
+            const mockWebview = {
+                postMessage: function(msg) {
+                    window.parent.postMessage({ action: "forward_to_csharp", payload: msg }, "*");
+                },
+                addEventListener: function(type, listener) {
+                    target.addEventListener(type, listener);
+                },
+                removeEventListener: function(type, listener) {
+                    target.removeEventListener(type, listener);
+                },
+                dispatchEvent: function(event) {
+                    target.dispatchEvent(event);
+                }
+            };
+            
+            try {
+                Object.defineProperty(window, 'chrome', {
+                    value: { webview: mockWebview },
+                    writable: true,
+                    configurable: true
+                });
+            } catch (e) {
+                window.chrome = { webview: mockWebview };
+            }
+            
+            window.addEventListener('message', event => {
+                if (event.source === window.parent) {
+                    if (event.data) {
+                        try {
+                            const newEvent = new MessageEvent('message', {
+                                data: event.data
+                            });
+                            window.chrome.webview.dispatchEvent(newEvent);
+                        } catch (e) {
+                            console.error('Error dispatching message event:', e);
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRP SERVER PANEL | ADVANCED SETTINGS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="theme.css?v=1.0.2">
+    <script defer src="js/alpine.min.js"></script>
+    <style>
+        .cli-filter-btn {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: #9ca3af;
+            font-size: 8px;
+            font-weight: 900;
+            text-transform: uppercase;
+            padding: 6px 12px;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .cli-filter-btn:hover {
+            background: rgba(255, 0, 0, 0.05);
+            border-color: rgba(255, 0, 0, 0.2);
+            color: #fff;
+        }
+        .cli-filter-btn.active {
+            background: rgba(255, 0, 0, 0.15);
+            border-color: #ff0000;
+            color: #fff;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.2);
+        }
+        .cli-param-card {
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            padding: 12px 16px;
+            transition: all 0.2s ease;
+        }
+        .cli-param-card:hover {
+            background: rgba(255, 0, 0, 0.02);
+            border-color: rgba(255, 0, 0, 0.15);
+        }
+        .highlight-glow {
+            animation: borderGlowFlash 1.5s ease-in-out 2 !important;
+        }
+        @keyframes borderGlowFlash {
+            0%, 100% { border-color: rgba(255, 0, 0, 0.15); box-shadow: none; }
+            50% { border-color: #ff0000; box-shadow: 0 0 15px rgba(255, 0, 0, 0.4); }
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen p-3 space-y-3">
+    <div id="toast" class="status-toast h-auto" style="display: none;" data-i18n="toast_saved">Settings Saved Successfully</div>
+    <!-- Header -->
+    <header class="h-14 flex items-center px-6 justify-between border-b border-white/5 bg-black/20" onmousedown="onDrag(event)">
+        <div class="flex items-center space-x-6">
+            <button onclick="window.parent.postMessage({action:'close_subpage'},'*')" class="w-10 h-10 glass flex items-center justify-center hover:bg-white/10 transition-all text-gray-500 hover:text-white" title="Вернуться на главную">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <div class="w-10 h-10 bg-red-600/10 border border-red-500/20 flex items-center justify-center text-red-500 shadow-lg">
+                <i class="fas fa-cogs text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-black italic tracking-tighter uppercase neon-text pixel-font text-primary" data-i18n="header_title">УПРАВЛЕНИЕ СЕРВЕРОМ</h1>
+                <p class="text-[9px] text-gray-500 font-bold tracking-[0.3em] uppercase">FULL RUST STACK ORCHESTRATOR v10.5</p>
+            </div>
+        </div>
+    </header>
+    <div class="flex-1 glass flex overflow-hidden">
+        <!-- Sidebar Navigation -->
+        <aside class="w-64 border-r border-white/5 flex flex-col bg-black/20">
+            <div class="tab-btn active" data-tab="identity"><i class="fas fa-id-card mr-3"></i> <span data-i18n="tab_identity">ИДЕНТИЧНОСТЬ</span></div>
+            <div class="tab-btn" data-tab="network"><i class="fas fa-network-wired mr-3"></i> <span data-i18n="tab_network">СЕТЬ И RCON</span></div>
+            <div class="tab-btn" data-tab="world"><i class="fas fa-globe-europe mr-3"></i> <span data-i18n="tab_world">МИР И КАРТА</span></div>
+            <div class="tab-btn" data-tab="wipe"><i class="fas fa-calendar-alt mr-3"></i> <span data-i18n="tab_wipe">ПЛАНИРОВЩИК ВАЙПОВ</span></div>
+            <div class="tab-btn" data-tab="gameplay"><i class="fas fa-gamepad mr-3"></i> <span data-i18n="tab_gameplay">ГЕЙМПЛЕЙ</span></div>
+            <div class="tab-btn" data-tab="security"><i class="fas fa-shield-alt mr-3"></i> <span data-i18n="tab_security">БЕЗОПАСНОСТЬ</span></div>
+            <div class="tab-btn" data-tab="ai"><i class="fas fa-robot mr-3"></i> <span data-i18n="tab_ai">ИИ-ПОМОЩНИК</span></div>
+            <div class="tab-btn" data-tab="advanced"><i class="fas fa-terminal mr-3"></i> <span data-i18n="tab_advanced">ТЕРМИНАЛ</span></div>
+            <div class="flex-1"></div>
+            <div class="p-6">
+                <button onclick="applySettings()" class="w-full h-12 bg-red-600 text-[10px] font-black uppercase text-white hover:bg-red-500 transition-all shadow-lg" data-i18n="btn_save">Сохранить всё</button>
+            </div>
+        </aside>
+        <!-- Content Area -->
+        <main class="flex-1 p-5 overflow-y-auto custom-scrollbar bg-black/10">
+            <!-- SECTION: IDENTITY -->
+            <div id="tab-identity" class="tab-pane space-y-8">
+                <div class="grid grid-cols-2 gap-6">
+                    <div class="space-y-6">
+                        <div>
+                            <label class="cyber-label" data-i18n="label_hostname">Public Server Name (Hostname)</label>
+                            <input type="text" id="cfg-hostname" class="cyber-input">
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_hostname">Название вашего сервера, которое будет отображаться в глобальном поиске Rust.</p>
+                        </div>
+                        <div>
+                            <label class="cyber-label" data-i18n="label_description">Server Description</label>
+                            <textarea id="cfg-description" rows="5" class="cyber-input py-3 resize-none bg-black/40"></textarea>
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_description">Описание сервера, показываемое игрокам при загрузке или выборе сервера.</p>
+
+                        </div>
+
+                    </div>
+                    <div class="space-y-6">
+                        <div>
+                            <label class="cyber-label" data-i18n="label_website">Website URL</label>
+                            <input type="text" id="cfg-url" class="cyber-input" placeholder="https://...">
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_website">Ссылка на ваш сайт, Discord или магазин (открывается при клике 'Visit Website').</p>
+                        </div>
+                        <div>
+                            <label class="cyber-label" data-i18n="label_headerimg">Header Image URL (1024x512)</label>
+                            <input type="text" id="cfg-headerimage" class="cyber-input" placeholder="https://...">
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_headerimg">URL баннера сервера (картинка 1024x512 JPG/PNG), отображаемого на экране подключения.</p>
+                        </div>
+                        <div>
+                            <label class="cyber-label" data-i18n="label_identity">Server Identity Folder</label>
+                            <input type="text" id="cfg-identity" class="cyber-input" readonly style="opacity: 0.5;">
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_identity">Название папки сервера для хранения баз данных, сохранений карты и логов.</p>
+                        </div>
+                        <div class="toggle-container no-drag">
+                            <div class="flex flex-col">
+                                <span class="cyber-label mb-0" data-i18n="label_autostart">Auto-start Server</span>
+                                <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_autostart">Автоматически запускать этот сервер при запуске TRP Server Panel.</p>
+                            </div>
+                            <div class="toggle-switch" id="cfg-autostart" onclick="this.classList.toggle('active')"><div class="toggle-dot"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION: NETWORK -->
+
+            <div id="tab-network" class="tab-pane hidden space-y-8">
+
+                <div class="grid grid-cols-2 gap-6">
+
+                    <div class="space-y-6">
+
+                        <h3 class="text-[10px] font-black text-red-500 uppercase tracking-widest pixel-font" data-i18n="section_connectivity">CONNECTIVITY</h3>
+
+                        <div>
+
+                            <label class="cyber-label" data-i18n="label_ip">Server IP Bind</label>
+
+                            <input type="text" id="cfg-ip" class="cyber-input" placeholder="0.0.0.0">
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_ip">Сетевой адрес для прослушивания (по умолчанию 0.0.0.0 — все доступные адреса).</p>
+
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+
+                            <div>
+
+                                <label class="cyber-label" data-i18n="label_port">Game Port</label>
+
+                                <input type="number" id="cfg-port" class="cyber-input">
+
+                                <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_port">Основной порт подключения игроков (стандартный: 28015).</p>
+
+                            </div>
+
+                            <div>
+
+                                <label class="cyber-label" data-i18n="label_queryport">Query Port</label>
+
+                                <input type="number" id="cfg-queryport" class="cyber-input">
+
+                                <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_queryport">Порт для запросов в Steam-браузере (стандартный: 28016).</p>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="space-y-6">
+
+                        <h3 class="text-[10px] font-black text-red-500 uppercase tracking-widest pixel-font" data-i18n="section_rcon">REMOTE CONSOLE</h3>
+
+                        <div>
+
+                            <label class="cyber-label" data-i18n="label_rconpass">RCON Password</label>
+
+                            <input type="text" id="cfg-rconpassword" class="cyber-input">
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_rconpass">Пароль для удаленного административного доступа к консоли.</p>
+
+                        </div>
+
+                        <div>
+
+                            <label class="cyber-label" data-i18n="label_adminsteamid">SteamID Администратора</label>
+
+                            <input type="text" id="cfg-adminsteamid" class="cyber-input">
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_adminsteamid">Ваш SteamID64 (например, 7656119xxxxxxxxxx) для корректной работы команд телепортации в панели.</p>
+
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+
+                            <div>
+
+                                <label class="cyber-label" data-i18n="label_rconport">RCON Port</label>
+
+                                <input type="number" id="cfg-rconport" class="cyber-input">
+
+                                <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_rconport">Порт для удаленных RCON-подключений (стандартный: 28017).</p>
+
+                            </div>
+
+                            <div class="pt-4 px-2">
+
+                                <label class="cyber-label" data-i18n="label_webrcon">Web RCON</label>
+
+                                <div class="toggle-container">
+
+                                    <span class="text-[9px] font-bold text-gray-500" data-i18n="label_enabled">Enabled</span>
+
+                                    <div class="toggle-switch active" id="cfg-rconweb" onclick="this.classList.toggle('active')"><div class="toggle-dot"></div></div>
+
+                                </div>
+
+                                <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_webrcon">Использование веб-сокетов RCON (рекомендуется включить).</p>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- SECTION: WORLD -->
+
+            <div id="tab-world" class="tab-pane hidden space-y-8">
+
+                <div class="grid grid-cols-2 gap-6">
+
+                    <div class="space-y-6">
+
+                        <div>
+
+                            <label class="cyber-label" data-i18n="label_seed">World Seed</label>
+
+                            <input type="number" id="cfg-seed" class="cyber-input">
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_seed">Числовой код генерации карты. Изменение приводит к смене ландшафта (вайпу).</p>
+
+                        </div>
+
+                        <div>
+
+                            <label class="cyber-label" data-i18n="label_size">Map World Size</label>
+
+                            <input type="number" id="cfg-worldsize" class="cyber-input">
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_size">Размер карты в метрах (например, от 1000 до 6000. Стандартный: 3000).</p>
+
+                        </div>
+
+                        <div>
+
+                            <label class="cyber-label" data-i18n="label_level">Map Level</label>
+
+                            <select id="cfg-maplevel" class="cyber-input bg-black/40">
+
+                                <option value="Procedural Map">Procedural Map</option>
+
+                                <option value="Barren">Barren</option>
+
+                                <option value="Hapi">Hapi Island</option>
+
+                                <option value="SavasIsland_Static">Savas Island</option>
+
+                            </select>
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_level">Тип карты: процедурная (Procedural), пустынная (Barren) или кастомная.</p>
+
+                        </div>
+
+                    </div>
+
+                    <div class="space-y-6">
+
+                        <div>
+
+                            <label class="cyber-label" data-i18n="label_slots">Max Player Slots</label>
+
+                            <input type="number" id="cfg-maxplayers" class="cyber-input">
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_slots">Максимальное количество игроков, которые могут находиться на сервере.</p>
+
+                        </div>
+
+                        <div>
+
+                            <label class="cyber-label" data-i18n="label_tickrate">Server Tickrate</label>
+
+                            <input type="number" id="cfg-tickrate" class="cyber-input">
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_tickrate">Количество игровых циклов в секунду (по умолчанию 30). Более высокий тикрейт повышает плавность.</p>
+
+                        </div>
+
+                        <div>
+
+                            <label class="cyber-label" data-i18n="label_level_url">Custom Map URL (Level URL)</label>
+
+                            <input type="text" id="cfg-levelurl" class="cyber-input" placeholder="https://...">
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_level_url">Ссылка на скачивание кастомной карты (.map), созданной в редакторах.</p>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- SECTION: WIPE SCHEDULER -->
+            <div id="tab-wipe" class="tab-pane hidden space-y-6">
+                <div class="grid grid-cols-2 gap-6">
+                    <div class="space-y-6 bg-red-600/5 border border-red-500/10 p-5 rounded-none">
+                        <h3 class="text-[10px] font-black text-red-500 uppercase tracking-widest pixel-font" data-i18n="section_wipe_schedule">WIPE SCHEDULER</h3>
+                        
+                        <div class="toggle-container">
+                            <div class="flex flex-col">
+                                <span class="cyber-label mb-0" data-i18n="label_wipe_enabled">Enable Auto-Wipe</span>
+                                <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_wipe_enabled">Автоматически выполнять вайп по расписанию.</p>
+                            </div>
+                            <div class="toggle-switch" id="cfg-wipe-enabled" onclick="this.classList.toggle('active')"><div class="toggle-dot"></div></div>
+                        </div>
+
+                        <div>
+                            <label class="cyber-label" data-i18n="label_wipe_frequency">Wipe Frequency</label>
+                            <select id="cfg-wipe-frequency" class="cyber-input bg-black/40">
+                                <option value="Daily">Daily (Ежедневно)</option>
+                                <option value="Weekly" selected>Weekly (Еженедельно)</option>
+                                <option value="Monthly">Monthly (Ежемесячно)</option>
+                            </select>
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_wipe_frequency">Периодичность автоматического проведения вайпа.</p>
+                        </div>
+
+                        <div>
+                            <label class="cyber-label" data-i18n="label_wipe_dayofweek">Wipe Day of Week</label>
+                            <select id="cfg-wipe-dayofweek" class="cyber-input bg-black/40">
+                                <option value="Monday">Monday (Понедельник)</option>
+                                <option value="Tuesday">Tuesday (Вторник)</option>
+                                <option value="Wednesday">Wednesday (Среда)</option>
+                                <option value="Thursday" selected>Thursday (Четверг)</option>
+                                <option value="Friday">Friday (Пятница)</option>
+                                <option value="Saturday">Saturday (Суббота)</option>
+                                <option value="Sunday">Sunday (Воскресенье)</option>
+                            </select>
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_wipe_dayofweek">День недели для еженедельного вайпа.</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-6 bg-red-600/5 border border-red-500/10 p-5 rounded-none">
+                        <h3 class="text-[10px] font-black text-red-500 uppercase tracking-widest pixel-font" data-i18n="section_wipe_details">DETAILS & PARAMETERS</h3>
+                        
+                        <div>
+                            <label class="cyber-label" data-i18n="label_wipe_time">Wipe Time (HH:MM)</label>
+                            <input type="text" id="cfg-wipe-time" class="cyber-input" placeholder="18:00">
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_wipe_time">Время выполнения вайпа по часовому поясу сервера.</p>
+                        </div>
+
+                        <div class="toggle-container">
+                            <div class="flex flex-col">
+                                <span class="cyber-label mb-0" data-i18n="label_wipe_blueprints">Wipe Blueprints (Full Wipe)</span>
+                                <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_wipe_blueprints">Стирать также рецепты/чертежи игроков при вайпе.</p>
+                            </div>
+                            <div class="toggle-switch" id="cfg-wipe-blueprints" onclick="this.classList.toggle('active')"><div class="toggle-dot"></div></div>
+                        </div>
+
+                        <div class="toggle-container">
+                            <div class="flex flex-col">
+                                <span class="cyber-label mb-0" data-i18n="label_wipe_autorestart">Auto-Restart After Wipe</span>
+                                <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_wipe_autorestart">Автоматически перезапускать сервер после применения вайпа.</p>
+                            </div>
+                            <div class="toggle-switch active" id="cfg-wipe-autorestart" onclick="this.classList.toggle('active')"><div class="toggle-dot"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION: GAMEPLAY -->
+
+            <div id="tab-gameplay" class="tab-pane hidden space-y-6">
+
+                <div class="grid grid-cols-2 gap-4">
+
+                    <div class="toggle-container">
+
+                        <div class="flex flex-col">
+
+                            <span class="cyber-label mb-0" data-i18n="label_pvp">PVP Combat</span>
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_pvp">Разрешает наносить урон по другим игрокам (PVP / PVE).</p>
+
+                        </div>
+
+                        <div class="toggle-switch active" id="cfg-pvp" onclick="this.classList.toggle('active')"><div class="toggle-dot"></div></div>
+
+                    </div>
+
+                    <div class="toggle-container">
+
+                        <div class="flex flex-col">
+
+                            <span class="cyber-label mb-0" data-i18n="label_stability">Building Stability</span>
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_stability">Влияет на устойчивость строений. Если выключено, стены не будут рушиться без опор.</p>
+
+                        </div>
+
+                        <div class="toggle-switch active" id="cfg-stability" onclick="this.classList.toggle('active')"><div class="toggle-dot"></div></div>
+
+                    </div>
+
+                    <div class="toggle-container">
+
+                        <div class="flex flex-col">
+
+                            <span class="cyber-label mb-0" data-i18n="label_rads">Environment Radiation</span>
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_radiation">Включает радиационное излучение в промышленных зонах (РТ).</p>
+
+                        </div>
+
+                        <div class="toggle-switch active" id="cfg-radiation" onclick="this.classList.toggle('active')"><div class="toggle-dot"></div></div>
+
+                    </div>
+
+                    <div class="toggle-container">
+
+                        <div class="flex flex-col">
+
+                            <span class="cyber-label mb-0" data-i18n="label_chat">Global Public Chat</span>
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_globalchat">Разрешает игрокам общаться в общем глобальном текстовом чате.</p>
+
+                        </div>
+
+                        <div class="toggle-switch active" id="cfg-globalchat" onclick="this.classList.toggle('active')"><div class="toggle-dot"></div></div>
+
+                    </div>
+
+                    <div class="toggle-container">
+
+                        <div class="flex flex-col">
+
+                            <span class="cyber-label mb-0" data-i18n="label_upkeep">Building Upkeep</span>
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_upkeep">Включает содержание зданий ресурсами из шкафа (предотвращает гниение).</p>
+
+                        </div>
+
+                        <div class="toggle-switch active" id="cfg-upkeep" onclick="this.classList.toggle('active')"><div class="toggle-dot"></div></div>
+
+                    </div>
+
+                    <div class="toggle-container">
+
+                        <div class="flex flex-col">
+
+                            <span class="cyber-label mb-0" data-i18n="label_instant_craft">Instant Crafting</span>
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_instantcraft">Мгновенное создание предметов игроками без времени ожидания.</p>
+
+                        </div>
+
+                        <div class="toggle-switch" id="cfg-instantcraft" onclick="this.classList.toggle('active')"><div class="toggle-dot"></div></div>
+
+                    </div>
+
+                    <div>
+
+                        <label class="cyber-label" data-i18n="label_decay_scale">Decay Rate Multiplier</label>
+
+                        <input type="number" step="0.1" id="cfg-decayscale" class="cyber-input">
+
+                        <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_decayscale">Множитель скорости разрушения построек без шкафа (1.0 — стандарт, 0 — выключено).</p>
+
+                    </div>
+
+                    <div>
+
+                        <label class="cyber-label" data-i18n="label_max_team_size">Max Team Size</label>
+
+                        <input type="number" id="cfg-maxteamsize" class="cyber-input">
+
+                        <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_maxteamsize">Лимит количества участников в одной игровой команде.</p>
+
+                    </div>
+
+                    <div>
+
+                        <label class="cyber-label" data-i18n="label_heli_lifespan">Helicopter Lifespan (Min)</label>
+
+                        <input type="number" id="cfg-helilifespan" class="cyber-input">
+
+                        <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_helilifespan">Время нахождения патрульного вертолета на карте до его улета.</p>
+
+                    </div>
+
+                    <div>
+
+                        <label class="cyber-label" data-i18n="label_save">Save Interval (Seconds)</label>
+
+                        <input type="number" id="cfg-saveinterval" class="cyber-input">
+
+                        <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_saveinterval">Периодичность автосохранения мира и прогресса игроков на диск.</p>
+
+                    </div>
+
+                    <div>
+
+                        <label class="cyber-label" data-i18n="label_day_length">Day Length (Min)</label>
+
+                        <input type="number" id="cfg-daylength" class="cyber-input">
+
+                        <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_daylength">Продолжительность дневного времени суток в реальных минутах.</p>
+
+                    </div>
+
+                    <div>
+
+                        <label class="cyber-label" data-i18n="label_night_length">Night Length (Min)</label>
+
+                        <input type="number" id="cfg-nightlength" class="cyber-input">
+
+                        <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_nightlength">Продолжительность ночного времени суток в реальных минутах.</p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- SECTION: SECURITY -->
+
+            <div id="tab-security" class="tab-pane hidden space-y-6">
+
+                <div class="grid grid-cols-2 gap-6">
+
+                    <div class="toggle-container">
+
+                        <div class="flex flex-col">
+
+                            <span class="cyber-label mb-0" data-i18n="label_secure">VAC & Game Security (Secure)</span>
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_secure">Включает защиту Valve Anti-Cheat и Easy Anti-Cheat (EAC) для предотвращения читерства.</p>
+
+                        </div>
+
+                        <div class="toggle-switch active" id="cfg-secure" onclick="this.classList.toggle('active')"><div class="toggle-dot"></div></div>
+
+                    </div>
+
+                    <div class="toggle-container">
+
+                        <div class="flex flex-col">
+
+                            <span class="cyber-label mb-0" data-i18n="label_proxy">Allow Proxy/VPN</span>
+
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_proxy">Разрешает или блокирует подключения от игроков, использующих прокси-серверы или VPN.</p>
+
+                        </div>
+
+                        <div class="toggle-switch" id="cfg-proxy" onclick="this.classList.toggle('active')"><div class="toggle-dot"></div></div>
+
+                    </div>
+
+                </div>
+
+                <div class="grid grid-cols-2 gap-6">
+
+                    <div>
+
+                        <label class="cyber-label" data-i18n="label_max_conn_ip">Max Connections Per IP</label>
+
+                        <input type="number" id="cfg-maxconnectionsperip" class="cyber-input">
+
+                        <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_max_conn_ip">Лимит одновременных подключений с одного IP-адреса для защиты от DDoS и бот-атак.</p>
+
+                    </div>
+
+                    <div class="flex flex-col justify-end">
+
+                        <label class="cyber-label" data-i18n="label_antihack">Antihack Protection Level (0-2)</label>
+
+                        <input type="range" id="cfg-antihack" min="0" max="2" class="w-full h-2 bg-red-900/40 appearance-none cursor-pointer accent-red-600 mt-2">
+
+                        <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_antihack">Уровень строгости встроенных проверок античита Rust (0 — выключен, 1 — только логи, 2 — кик игроков).</p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- SECTION: AI ASSISTANT -->
+
+            <div id="tab-ai" class="tab-pane hidden space-y-8">
+
+                <div class="grid grid-cols-2 gap-6">
+
+                    <div class="space-y-6">
+
+                        <h3 class="text-[10px] font-black text-red-500 uppercase tracking-widest pixel-font" data-i18n="section_ai_config">AI CONFIGURATION</h3>
+
+                        <div>
+
+                            <label class="cyber-label" data-i18n="label_ai_model">Active AI Model</label>
+
+                            <select id="cfg-aimodel" class="cyber-input bg-black/40">
+
+                                <option value="nvidia/nemotron-3-super-120b-a12b:free">Nvidia Nemotron 3 120B (Free)</option>
+
+                                <option value="google/gemini-2.0-flash-001">Google Gemini 2.0 Flash</option>
+
+                                <option value="mistralai/mistral-7b-instruct:free">Mistral 7B Instruct (Free)</option>
+
+                            </select>
+
+                        </div>
+
+                        <div>
+
+                            <label class="cyber-label" data-i18n="label_ai_key">Custom API Key (OpenRouter/Gemini)</label>
+
+                            <input type="password" id="cfg-aikey" class="cyber-input" placeholder="sk-or-v1-...">
+
+                            <p class="text-[7px] text-gray-600 font-bold uppercase mt-2" data-i18n="label_ai_warn">If empty, system default key will be used.</p>
+
+                        </div>
+
+                    </div>
+
+                    <div class="space-y-6">
+
+                        <div class="p-6  bg-red-600/5 border border-red-500/10">
+
+                            <h4 class="text-[10px] font-black text-white uppercase mb-2">Nemotron 3 120B</h4>
+
+                            <p class="text-[9px] text-white/50 leading-relaxed font-medium">
+
+                                Мощная модель от NVIDIA, оптимизированная для технических консультаций и сложных логических задач. 
+
+                                Рекомендуется для профессиональной настройки плагинов.
+
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- SECTION: ADVANCED -->
+
+            <div id="tab-advanced" class="tab-pane hidden space-y-6">
+
+                <!-- Live command preview -->
+                <div class="p-6 bg-red-600/5 border border-red-500/10 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h4 class="text-[10px] font-black text-white uppercase tracking-widest pixel-font" data-i18n="cli_preview_title">КОМАНДНАЯ СТРОКА ЗАПУСКА (CLI PREVIEW)</h4>
+                        <button onclick="copyCliPreview()" class="cyber-btn px-4 py-2 text-[9px] no-drag">
+                            <i class="fas fa-copy mr-1"></i> <span data-i18n="btn_copy">Копировать</span>
+                        </button>
+                    </div>
+                    <div id="cli-preview" class="p-4 bg-black/60 border border-white/5 font-mono text-[10px] text-red-400 select-all overflow-x-auto whitespace-pre-wrap break-all rounded max-h-32 custom-scrollbar">
+                        RustDedicated.exe +server.identity "rustserver" ...
+                    </div>
+                </div>
+
+                <!-- Additional Args input -->
+                <div class="p-6 bg-red-600/5 border border-red-500/10 space-y-3">
+                    <label class="cyber-label" data-i18n="label_args">Advanced Startup Arguments (CLI)</label>
+                    <input type="text" id="cfg-args" class="cyber-input font-mono text-[10px]" placeholder="-batchmode -nographics -silent-crashes">
+                    <p class="text-[8px] text-red-500 font-bold uppercase tracking-wider" data-i18n="label_args_warn">Warning: Improper arguments will crash the server boot process.</p>
+                </div>
+
+                <!-- Parameters Reference Grid -->
+                <div class="p-6 bg-red-600/5 border border-red-500/10 space-y-6">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between border-b border-white/5 pb-4 gap-4">
+                        <div>
+                            <h4 class="text-[10px] font-black text-white uppercase tracking-widest pixel-font" data-i18n="cli_ref_title">Справочник параметров запуска</h4>
+                            <p class="text-[9px] text-gray-500 font-medium mt-1" data-i18n="cli_ref_subtitle">Полное описание и быстрая настройка аргументов командной строки</p>
+                        </div>
+                        <div>
+                            <input type="text" id="cli-search" oninput="filterCliParams()" placeholder="Поиск параметра..." class="cyber-input py-2 px-3 text-[10px] w-64 bg-black/40">
+                        </div>
+                    </div>
+                    
+                    <!-- Category Filters -->
+                    <div class="flex flex-wrap gap-2" id="cli-category-filters">
+                        <button class="cli-filter-btn active" data-category="all" onclick="setCliCategory('all')">Все</button>
+                        <button class="cli-filter-btn" data-category="System" onclick="setCliCategory('System')">Система</button>
+                        <button class="cli-filter-btn" data-category="Network" onclick="setCliCategory('Network')">Сеть</button>
+                        <button class="cli-filter-btn" data-category="Map" onclick="setCliCategory('Map')">Мир</button>
+                        <button class="cli-filter-btn" data-category="Gameplay" onclick="setCliCategory('Gameplay')">Геймплей</button>
+                        <button class="cli-filter-btn" data-category="Security" onclick="setCliCategory('Security')">Безопасность</button>
+                        <button class="cli-filter-btn" data-category="Performance" onclick="setCliCategory('Performance')">Производительность</button>
+                    </div>
+
+                    <!-- Grid of Params -->
+                    <div class="space-y-3" id="cli-params-container">
+                        <!-- Will be populated dynamically by JS -->
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+
+    </div>
+
+    <script>
+        function safePostMessage(obj) {
+            if (window.chrome && window.chrome.webview) {
+                try { window.chrome.webview.postMessage(obj); } catch (e) { }
+            }
+        }
+
+        function onDrag(e) {
+            if (e.target.closest('button, input, select, textarea, .no-drag')) return;
+            safePostMessage({ action: "drag" });
+        }
+
+        const translations = {
+
+            ru: {
+
+                header_title: "УПРАВЛЕНИЕ СЕРВЕРОМ",
+
+                tab_identity: "ИДЕНТИЧНОСТЬ",
+
+                tab_network: "СЕТЬ И RCON",
+
+                tab_world: "МИР И КАРТА",
+
+                tab_gameplay: "ГЕЙМПЛЕЙ",
+
+                tab_security: "БЕЗОПАСНОСТЬ",
+
+                tab_advanced: "ТЕРМИНАЛ",
+
+                btn_save: "Сохранить всё",
+
+                label_hostname: "Публичное имя сервера (Hostname)",
+
+                label_description: "Описание сервера",
+
+                label_website: "Ссылка на сайт (URL)",
+
+                label_headerimg: "Ссылка на баннер (1024x512)",
+
+                label_identity: "Папка идентичности сервера",
+
+                label_autostart: "Автозапуск сервера",
+
+                section_connectivity: "ПОДКЛЮЧЕНИЕ",
+
+                section_rcon: "УДАЛЕННАЯ КОНСОЛЬ",
+
+                label_ip: "IP привязка сервера",
+
+                label_port: "Игровой порт",
+
+                label_queryport: "Query порт",
+
+                label_rconpass: "RCON Пароль",
+
+                label_rconport: "RCON Порт",
+
+                label_webrcon: "Web RCON",
+
+                label_adminsteamid: "SteamID Администратора",
+
+                label_enabled: "Включено",
+
+                label_seed: "Сид мира (Seed)",
+
+                label_size: "Размер карты (World Size)",
+
+                label_level: "Тип карты (Level)",
+
+                label_slots: "Макс. количество игроков",
+
+                label_tickrate: "Тикрейт сервера",
+
+                label_pvp: "PVP Режим",
+
+                label_stability: "Стабильность зданий",
+
+                label_rads: "Радиация",
+
+                label_chat: "Глобальный чат",
+
+                label_save: "Интервал сохранений (сек)",
+
+                label_secure: "Защита VAC (Secure)",
+
+                label_proxy: "Разрешить VPN/Proxy",
+
+                label_antihack: "Уровень античита (0-2)",
+
+                label_args: "Аргументы запуска (CLI)",
+
+                label_args_warn: "ВНИМАНИЕ: Неверные параметры могут привести к сбою запуска.",
+
+                cli_preview_title: "КОМАНДНАЯ СТРОКА ЗАПУСКА (CLI PREVIEW)",
+
+                btn_copy: "Копировать",
+
+                cli_ref_title: "Справочник параметров запуска",
+
+                cli_ref_subtitle: "Полное описание и быстрая настройка аргументов командной строки",
+
+                toast_copied: "Командная строка скопирована в буфер обмена!",
+
+                tab_ai: "ИИ-ПОМОЩНИК",
+
+                section_ai_config: "КОНФИГУРАЦИЯ ИИ",
+
+                label_ai_model: "Активная модель ИИ",
+
+                label_ai_key: "Персональный API Ключ",
+
+                label_ai_warn: "Если поле пустое, будет использован системный ключ.",
+
+                toast_saved: "Настройки успешно применены",
+
+                label_upkeep: "Содержание построек (Upkeep)",
+
+                label_decay_scale: "Множитель гниения (Decay Scale)",
+
+                label_instant_craft: "Мгновенный крафт (Instant Craft)",
+
+                label_max_team_size: "Макс. размер команды (Max Team Size)",
+
+                label_heli_lifespan: "Время жизни вертолета (мин)",
+
+                label_day_length: "Длительность дня (мин)",
+
+                label_night_length: "Длительность ночи (мин)",
+
+                label_max_conn_ip: "Макс. подключений с одного IP",
+
+                label_level_url: "URL кастомной карты (Level URL)",
+
+                desc_hostname: "Название вашего сервера, которое будет отображаться в глобальном поиске Rust.",
+
+                desc_description: "Описание сервера, показываемое игрокам при загрузке или выборе сервера.",
+
+                desc_website: "Ссылка на ваш сайт, Discord или магазин (открывается при клике 'Visit Website').",
+
+                desc_headerimg: "URL баннера сервера (картинка 1024x512 JPG/PNG), отображаемого на экране подключения.",
+
+                desc_identity: "Название папки сервера для хранения баз данных, сохранений карты и логов.",
+
+                desc_autostart: "Автоматически запускать этот сервер при запуске TRP Server Panel.",
+
+                desc_ip: "Сетевой IP-адрес для прослушивания (0.0.0.0 — все доступные адреса).",
+
+                desc_port: "Основной порт подключения игроков к серверу Rust (стандартный: 28015).",
+
+                desc_queryport: "Порт для сетевых запросов и Steam-браузера (стандартный: 28016).",
+
+                desc_rconpass: "Пароль для удаленного административного доступа к консоли.",
+
+                desc_rconport: "Порт для удаленных RCON-подключений администраторов (стандартный: 28017).",
+
+                desc_webrcon: "Использование веб-сокетов RCON (рекомендуется включить для современных панелей).",
+
+                desc_adminsteamid: "Ваш SteamID64 (например, 7656119xxxxxxxxxx) для корректной работы команд телепортации в панели.",
+
+                desc_seed: "Числовой код генерации карты. Изменение приводит к смене ландшафта (вайпу).",
+
+                desc_size: "Размер карты в метрах (например, от 1000 до 6000. Стандартный: 3000).",
+
+                desc_level: "Тип карты: процедурная (Procedural), пустынная (Barren) или кастомная.",
+
+                desc_slots: "Максимальное количество игроков, которые могут находиться на сервере.",
+
+                desc_tickrate: "Количество игровых циклов в секунду (по умолчанию 30). Более высокий тикрейт повышает плавность.",
+
+                desc_level_url: "Ссылка на скачивание кастомной карты (.map), созданной в редакторах.",
+
+                desc_pvp: "Разрешает наносить урон по другим игрокам (PVP / PVE).",
+
+                desc_stability: "Влияет на устойчивость строений. Если выключено, стены не будут рушиться без опор.",
+
+                desc_radiation: "Включает радиационное излучение в промышленных зонах (РТ).",
+
+                desc_globalchat: "Разрешает игрокам общаться в общем глобальном текстовом чате.",
+
+                desc_upkeep: "Включает содержание зданий ресурсами из шкафа (предотвращает гниение).",
+
+                desc_instantcraft: "Мгновенное создание предметов игроками без времени ожидания.",
+
+                desc_decayscale: "Множитель скорости разрушения построек без шкафа (1.0 — стандарт, 0 — выключено).",
+
+                desc_maxteamsize: "Лимит количества участников в одной игровой команде.",
+
+                desc_helilifespan: "Время нахождения патрульного вертолета на карте до его улета.",
+
+                desc_saveinterval: "Периодичность автосохранения мира и прогресса игроков на диск.",
+
+                desc_daylength: "Продолжительность дневного времени суток в реальных минутах.",
+
+                desc_nightlength: "Продолжительность ночного времени суток в реальных минутах.",
+
+                desc_secure: "Включает защиту Valve Anti-Cheat и Easy Anti-Cheat (EAC) для предотвращения читерства.",
+
+                desc_proxy: "Разрешает или блокирует подключения от игроков, использующих прокси-серверы или VPN.",
+
+                desc_max_conn_ip: "Лимит одновременных подключений с одного IP-адреса для защиты от DDoS и бот-атак.",
+
+                desc_antihack: "Уровень строгости встроенных проверок античита Rust (0 — выключен, 1 — только логи, 2 — кик игроков).",
+
+                tab_wipe: "ПЛАНИРОВЩИК ВАЙПОВ",
+                section_wipe_schedule: "ПЛАНИРОВЩИК ВАЙПОВ",
+                label_wipe_enabled: "Включить автовайп",
+                desc_wipe_enabled: "Автоматически выполнять вайп по заданному расписанию.",
+                label_wipe_frequency: "Частота вайпов",
+                desc_wipe_frequency: "Как часто производить автоматический вайп сервера.",
+                label_wipe_dayofweek: "День недели",
+                desc_wipe_dayofweek: "День недели, в который будет запускаться вайп.",
+                section_wipe_details: "ПАРАМЕТРЫ ВАЙПА",
+                label_wipe_time: "Время вайпа (ЧЧ:ММ)",
+                desc_wipe_time: "Точное время проведения вайпа (по времени сервера).",
+                label_wipe_blueprints: "Вайпать чертежи",
+                desc_wipe_blueprints: "Полный вайп с очисткой чертежей и рецептов игроков.",
+                label_wipe_autorestart: "Перезапуск после вайпа",
+                desc_wipe_autorestart: "Перезапускать игровой процесс сервера сразу после вайпа."
+
+            },
+
+            en: {
+
+                header_title: "SERVER MANAGEMENT",
+
+                tab_identity: "IDENTITY",
+
+                tab_network: "NET & RCON",
+
+                tab_world: "WORLD & MAP",
+
+                tab_gameplay: "GAMEPLAY",
+
+                tab_security: "SECURITY",
+
+                tab_advanced: "TERMINAL",
+
+                btn_save: "Save All Settings",
+
+                label_hostname: "Public Server Name (Hostname)",
+
+                label_description: "Server Description",
+
+                label_website: "Website URL",
+
+                label_headerimg: "Header Image URL (1024x512)",
+
+                label_identity: "Server Identity Folder",
+
+                label_autostart: "Auto-start Server",
+
+                section_connectivity: "CONNECTIVITY",
+
+                section_rcon: "REMOTE CONSOLE",
+
+                label_ip: "Server IP Bind",
+
+                label_port: "Game Port",
+
+                label_queryport: "Query Port",
+
+                label_rconpass: "RCON Password",
+
+                label_rconport: "RCON Port",
+
+                label_webrcon: "Web RCON",
+
+                label_adminsteamid: "Admin SteamID",
+
+                label_enabled: "Enabled",
+
+                label_seed: "World Seed",
+
+                label_size: "Map World Size",
+
+                label_level: "Map Level",
+
+                label_slots: "Max Player Slots",
+
+                label_tickrate: "Server Tickrate",
+
+                label_pvp: "PVP Combat",
+
+                label_stability: "Building Stability",
+
+                label_rads: "Environment Radiation",
+
+                label_chat: "Global Public Chat",
+
+                label_save: "Save Interval (Seconds)",
+
+                label_secure: "VAC & Game Security (Secure)",
+
+                label_proxy: "Allow Proxy/VPN",
+
+                label_antihack: "Antihack Protection Level (0-2)",
+
+                label_args: "Advanced Startup Arguments (CLI)",
+
+                label_args_warn: "Warning: Improper arguments will crash the server boot process.",
+
+                cli_preview_title: "STARTUP COMMAND LINE (CLI PREVIEW)",
+
+                btn_copy: "Copy",
+
+                cli_ref_title: "Startup Parameters Directory",
+
+                cli_ref_subtitle: "Detailed descriptions and fast setup of command-line arguments",
+
+                toast_copied: "Command line copied to clipboard!",
+
+                tab_ai: "AI ASSISTANT",
+
+                section_ai_config: "AI CONFIGURATION",
+
+                label_ai_model: "Active AI Model",
+
+                label_ai_key: "Custom API Key",
+
+                label_ai_warn: "If empty, system default key will be used.",
+
+                toast_saved: "Settings Applied Successfully",
+
+                label_upkeep: "Building Upkeep",
+
+                label_decay_scale: "Decay Rate Multiplier",
+
+                label_instant_craft: "Instant Crafting",
+
+                label_max_team_size: "Max Team Size",
+
+                label_heli_lifespan: "Helicopter Lifespan (Min)",
+
+                label_day_length: "Day Length (Min)",
+
+                label_night_length: "Night Length (Min)",
+
+                label_max_conn_ip: "Max Connections Per IP",
+
+                label_level_url: "Custom Map URL (Level URL)",
+
+                desc_hostname: "The name of your server that will be visible in the global Rust search list.",
+
+                desc_description: "The description of the server shown to players during loading or selection.",
+
+                desc_website: "Link to your website, Discord, or store (opens when clicking 'Visit Website').",
+
+                desc_headerimg: "URL of the server banner (1024x512 JPG/PNG) displayed on the connection screen.",
+
+                desc_identity: "The folder name used to store server databases, map saves, and logs.",
+
+                desc_autostart: "Automatically launch this server when starting TRP Server Panel.",
+
+                desc_ip: "The network IP address to listen on (0.0.0.0 — listens on all available interfaces).",
+
+                desc_port: "The primary port for players to connect to the Rust server (default: 28015).",
+
+                desc_queryport: "The port used for network queries and the Steam server browser (default: 28016).",
+
+                desc_rconpass: "Password used for remote administrator console access.",
+
+                desc_rconport: "The port used for remote administrative RCON connections (default: 28017).",
+
+                desc_webrcon: "Enables WebSockets for RCON (recommended for modern administration panels).",
+
+                desc_adminsteamid: "Your SteamID64 (e.g. 7656119xxxxxxxxxx) for player teleport actions to work correctly from the panel.",
+
+                desc_seed: "The numeric map generation code. Changing it generates a new map layout (wipes map).",
+
+                desc_size: "The size of the map in meters (typically 1000 to 6000. Default: 3000).",
+
+                desc_level: "The map type: Procedural Map, Barren, or custom map layouts.",
+
+                desc_slots: "The maximum number of players allowed on the server at the same time.",
+
+                desc_tickrate: "The number of simulation tick steps per second (default: 30). Higher increases responsiveness.",
+
+                desc_level_url: "Download link for a custom map file (.map) created in external editors.",
+
+                desc_pvp: "Enables or disables damage between players (PVP / PVE modes).",
+
+                desc_stability: "Controls building stability. If disabled, walls and roofs won't collapse without supports.",
+
+                desc_radiation: "Enables radioactive zones around monuments and industrial areas.",
+
+                desc_globalchat: "Allows players to send messages to the server-wide public text chat.",
+
+                desc_upkeep: "Enables resource upkeep consumption from Tool Cupboards to prevent base decay.",
+
+                desc_instantcraft: "Allows players to craft items instantly without any waiting time.",
+
+                desc_decayscale: "Decay rate multiplier for structures outside cupboard range (1.0 = normal, 0 = disabled).",
+
+                desc_maxteamsize: "The maximum number of players allowed to join a single team.",
+
+                desc_helilifespan: "The lifespan of the patrol helicopter before it leaves the map area.",
+
+                desc_saveinterval: "The frequency of automatic server map saves to disk.",
+
+                desc_daylength: "The length of day time in real-time minutes.",
+
+                desc_nightlength: "The length of night time in real-time minutes.",
+
+                desc_secure: "Enables official Valve Anti-Cheat and Easy Anti-Cheat (EAC) protection.",
+
+                desc_proxy: "Allows or blocks connections from players using proxies or VPN networks.",
+
+                desc_max_conn_ip: "Limits concurrent player connections from a single IP address (prevents botnets).",
+
+                desc_antihack: "Rust's native antihack strictness level (0 = disabled, 1 = log violations, 2 = kick players).",
+
+                tab_wipe: "WIPE SCHEDULER",
+                section_wipe_schedule: "WIPE SCHEDULER",
+                label_wipe_enabled: "Enable Auto-Wipe",
+                desc_wipe_enabled: "Automatically execute server wipe based on schedule.",
+                label_wipe_frequency: "Wipe Frequency",
+                desc_wipe_frequency: "How often to trigger automatic server wipes.",
+                label_wipe_dayofweek: "Day of Week",
+                desc_wipe_dayofweek: "The day of the week to trigger weekly wipes.",
+                section_wipe_details: "WIPE PARAMETERS",
+                label_wipe_time: "Wipe Time (HH:MM)",
+                desc_wipe_time: "Exact time to run the wipe (server local time).",
+                label_wipe_blueprints: "Wipe Blueprints",
+                desc_wipe_blueprints: "Full wipe including player blueprints and recipes.",
+                label_wipe_autorestart: "Restart After Wipe",
+                desc_wipe_autorestart: "Automatically restart the server immediately after wipe."
+
+            }
+
+        };
+
+        let currentLang = localStorage.getItem('trp_lang') || 'ru';
+
+        function updateLocalization() {
+
+            const dict = translations[currentLang];
+
+            if (!dict) return;
+
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+
+                const key = el.getAttribute('data-i18n');
+
+                if (dict[key]) el.innerHTML = dict[key];
+
+            });
+
+        }
+
+        // Tab switching
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+
+            btn.addEventListener('click', () => {
+
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+
+                document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+
+                btn.classList.add('active');
+
+                document.getElementById('tab-' + btn.getAttribute('data-tab')).classList.remove('hidden');
+
+            });
+
+        });
+
+        // Toggle state helper
+
+        function isActive(id) { return document.getElementById(id).classList.contains('active'); }
+
+        function setActive(id, val) { 
+
+            const el = document.getElementById(id);
+
+            if (val) el.classList.add('active'); else el.classList.remove('active');
+
+        }
+
+        // WebView bridge
+
+        if (window.chrome && window.chrome.webview) {
+
+            window.chrome.webview.addEventListener('message', event => {
+
+                try {
+
+                    // v18.0.1: PostWebMessageAsJson delivers a parsed object in event.data.
+
+                    // Calling JSON.parse on it was causing a SyntaxError.
+
+                    const data = event.data;
+
+                    console.log("[BRIDGE] Received message:", data);
+
+                    if (data.type === 'language_updated') {
+                        currentLang = data.lang;
+                        localStorage.setItem('trp_lang', data.lang);
+                        updateLocalization();
+                        renderCliParams();
+                        updateCliPreview();
+                        return;
+                    }
+
+                    if (data.type === 'stats_update' || data.type === 'force_config_sync') {
+
+                        const cfg = data.Config || data.payload;
+
+                        if (cfg) {
+
+                            console.log("[BRIDGE] Valid config received, populating fields...");
+
+                            populateFields(cfg);
+
+                        }
+
+                    }
+
+                } catch (e) {
+
+                    console.error("[BRIDGE] Message handler crashed:", e);
+
+                }
+
+            });
+
+        }
+
+        function populateFields(cfg) {
+
+            if (!cfg) return;
+
+            // Updated helper to robustly handle PascalCase/camelCase from backend
+
+            const get = (key) => {
+
+                if (typeof key !== 'string' || !key || typeof key.charAt !== 'function') return undefined;
+
+                if (cfg[key] !== undefined) return cfg[key];
+
+                const camelKey = key.charAt(0).toLowerCase() + key.slice(1);
+
+                return cfg[camelKey];
+
+            };
+
+            const setField = (id, key, fallback = '') => {
+
+                const val = get(key);
+
+                const el = document.getElementById(id);
+
+                if (el) {
+
+                    el.value = (val !== null && val !== undefined) ? val : fallback;
+
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+
+                }
+
+            };
+
+            const setToggle = (id, key) => {
+
+                setActive(id, get(key));
+
+            };
+
+            setField('cfg-hostname', 'Hostname', 'RUST DEV LAB');
+
+            setField('cfg-description', 'Description');
+
+            setField('cfg-url', 'Url');
+
+            setField('cfg-headerimage', 'HeaderImage');
+
+            setField('cfg-identity', 'Identity', 'rustserver');
+
+            setToggle('cfg-autostart', 'AutoStart');
+
+            setField('cfg-ip', 'ServerIP', '0.0.0.0');
+
+            setField('cfg-port', 'Port', 28015);
+
+            setField('cfg-queryport', 'QueryPort', 28016);
+
+            setField('cfg-rconport', 'RconPort', 28017);
+
+            setField('cfg-rconpassword', 'RconPassword');
+
+            setField('cfg-adminsteamid', 'AdminSteamId');
+
+            setToggle('cfg-rconweb', 'RconWeb');
+
+            setField('cfg-seed', 'Seed', 12345);
+
+            setField('cfg-worldsize', 'WorldSize', 3000);
+
+            setField('cfg-maplevel', 'MapLevel', 'Procedural Map');
+
+            setField('cfg-maxplayers', 'MaxPlayers', 100);
+
+            setField('cfg-tickrate', 'Tickrate', 30);
+
+            setToggle('cfg-pvp', 'PvpEnabled');
+
+            setToggle('cfg-stability', 'Stability');
+
+            setToggle('cfg-radiation', 'Radiation');
+
+            setToggle('cfg-globalchat', 'GlobalChat');
+
+            setField('cfg-saveinterval', 'SaveInterval', 300);
+
+            setToggle('cfg-secure', 'Secure');
+
+            setToggle('cfg-proxy', 'ProxyConnections');
+
+            setField('cfg-antihack', 'AntiHackLevel', 2);
+
+            setField('cfg-args', 'AdditionalArgs');
+
+            setField('cfg-aimodel', 'AiModel');
+
+            setField('cfg-aikey', 'AiApiKey');
+
+            setToggle('cfg-upkeep', 'Upkeep');
+
+            setField('cfg-decayscale', 'DecayScale', 1.0);
+
+            setToggle('cfg-instantcraft', 'InstantCraft');
+
+            setField('cfg-maxteamsize', 'MaxTeamSize', 8);
+
+            setField('cfg-helilifespan', 'HeliLifespan', 45);
+
+            setField('cfg-daylength', 'DayLength', 45);
+
+            setField('cfg-nightlength', 'NightLength', 15);
+
+            setField('cfg-maxconnectionsperip', 'MaxConnectionsPerIP', 5);
+
+            setField('cfg-levelurl', 'LevelUrl');
+
+            // Wipe Scheduler mapping
+            const sched = get('WipeSchedule') || {};
+            const getSchedVal = (key, fallback) => {
+                if (typeof key !== 'string' || !key || typeof key.charAt !== 'function') return fallback;
+                if (sched[key] !== undefined) return sched[key];
+                const camelKey = key.charAt(0).toLowerCase() + key.slice(1);
+                return (sched[camelKey] !== undefined) ? sched[camelKey] : fallback;
+            };
+
+            const setWipeToggle = (id, subKey, fallback = false) => {
+                const val = getSchedVal(subKey, fallback);
+                setActive(id, val);
+            };
+
+            const setWipeField = (id, subKey, fallback = '') => {
+                const val = getSchedVal(subKey, fallback);
+                const el = document.getElementById(id);
+                if (el) {
+                    el.value = (val !== null && val !== undefined) ? val : fallback;
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            };
+
+            setWipeToggle('cfg-wipe-enabled', 'Enabled', false);
+            setWipeField('cfg-wipe-frequency', 'Frequency', 'Weekly');
+            setWipeField('cfg-wipe-dayofweek', 'DayOfWeek', 'Thursday');
+            setWipeField('cfg-wipe-time', 'Time', '18:00');
+            setWipeToggle('cfg-wipe-blueprints', 'WipeBlueprints', false);
+            setWipeToggle('cfg-wipe-autorestart', 'AutoRestart', true);
+
+            console.log("[BRIDGE] Fields populated successfully.");
+
+        }
+
+        function applySettings() {
+
+            // We always send back exactly what the backend expects (PascalCase)
+
+            const config = {
+
+                Hostname: document.getElementById('cfg-hostname').value,
+
+                Description: document.getElementById('cfg-description').value,
+
+                Url: document.getElementById('cfg-url').value,
+
+                HeaderImage: document.getElementById('cfg-headerimage').value,
+
+                Identity: document.getElementById('cfg-identity').value,
+
+                AutoStart: isActive('cfg-autostart'),
+
+                ServerIP: document.getElementById('cfg-ip').value,
+
+                Port: parseInt(document.getElementById('cfg-port').value) || 28015,
+
+                QueryPort: parseInt(document.getElementById('cfg-queryport').value) || 28016,
+
+                RconPort: parseInt(document.getElementById('cfg-rconport').value) || 28017,
+
+                RconPassword: document.getElementById('cfg-rconpassword').value,
+
+                AdminSteamId: document.getElementById('cfg-adminsteamid').value,
+
+                RconWeb: isActive('cfg-rconweb'),
+
+                Seed: parseInt(document.getElementById('cfg-seed').value) || 12345,
+
+                WorldSize: parseInt(document.getElementById('cfg-worldsize').value) || 3000,
+
+                MapLevel: document.getElementById('cfg-maplevel').value,
+
+                MaxPlayers: parseInt(document.getElementById('cfg-maxplayers').value) || 100,
+
+                Tickrate: parseInt(document.getElementById('cfg-tickrate').value) || 30,
+
+                PvpEnabled: isActive('cfg-pvp'),
+
+                Stability: isActive('cfg-stability'),
+
+                Radiation: isActive('cfg-radiation'),
+
+                GlobalChat: isActive('cfg-globalchat'),
+
+                SaveInterval: parseInt(document.getElementById('cfg-saveinterval').value) || 300,
+
+                Secure: isActive('cfg-secure'),
+
+                ProxyConnections: isActive('cfg-proxy'),
+
+                AntiHackLevel: parseInt(document.getElementById('cfg-antihack').value) || 2,
+
+                AdditionalArgs: document.getElementById('cfg-args').value,
+
+                AiModel: document.getElementById('cfg-aimodel').value,
+
+                AiApiKey: document.getElementById('cfg-aikey').value,
+
+                Upkeep: isActive('cfg-upkeep'),
+
+                DecayScale: parseFloat(document.getElementById('cfg-decayscale').value) || 1.0,
+
+                InstantCraft: isActive('cfg-instantcraft'),
+
+                MaxTeamSize: parseInt(document.getElementById('cfg-maxteamsize').value) || 8,
+
+                HeliLifespan: parseFloat(document.getElementById('cfg-helilifespan').value) || 45,
+
+                DayLength: parseFloat(document.getElementById('cfg-daylength').value) || 45,
+
+                NightLength: parseFloat(document.getElementById('cfg-nightlength').value) || 15,
+
+                MaxConnectionsPerIP: parseInt(document.getElementById('cfg-maxconnectionsperip').value) || 5,
+
+                LevelUrl: document.getElementById('cfg-levelurl').value,
+
+                WipeSchedule: {
+                    Enabled: isActive('cfg-wipe-enabled'),
+                    Frequency: document.getElementById('cfg-wipe-frequency').value,
+                    DayOfWeek: document.getElementById('cfg-wipe-dayofweek').value,
+                    Time: document.getElementById('cfg-wipe-time').value,
+                    WipeBlueprints: isActive('cfg-wipe-blueprints'),
+                    AutoRestart: isActive('cfg-wipe-autorestart')
+                }
+
+            };
+
+            safePostMessage({
+
+                action: 'save_server_settings',
+
+                payload: config
+
+            });
+
+            // Show toast
+
+            const toast = document.getElementById('toast');
+
+            toast.style.display = 'block';
+
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+
+        }
+
+        function initCustomSelects() {
+            document.querySelectorAll('select').forEach(select => {
+                // If already customized, skip
+                if (select.nextElementSibling && select.nextElementSibling.classList.contains('custom-select-container')) {
+                    return;
+                }
+
+                select.style.display = 'none';
+
+                // Create container
+                const container = document.createElement('div');
+                container.className = 'custom-select-container no-drag';
+
+                // Create trigger
+                const trigger = document.createElement('div');
+                trigger.className = 'custom-select-trigger';
+                
+                const selectedText = document.createElement('span');
+                selectedText.className = 'custom-select-selected-text';
+                
+                // Get initial selected option text
+                const initialOption = select.options[select.selectedIndex] || select.options[0];
+                selectedText.innerText = initialOption ? initialOption.text : '';
+                
+                const arrow = document.createElement('i');
+                arrow.className = 'fas fa-chevron-down text-red-500 custom-select-arrow';
+
+                trigger.appendChild(selectedText);
+                trigger.appendChild(arrow);
+                container.appendChild(trigger);
+
+                // Create options dropdown
+                const optionsDiv = document.createElement('div');
+                optionsDiv.className = 'custom-select-options hidden';
+
+                // Populate options
+                Array.from(select.options).forEach(opt => {
+                    const optEl = document.createElement('div');
+                    optEl.className = 'custom-select-option';
+                    optEl.setAttribute('data-value', opt.value);
+                    
+                    const label = document.createElement('span');
+                    label.innerText = opt.text;
+                    
+                    const check = document.createElement('i');
+                    check.className = 'fas fa-check check-icon';
+
+                    optEl.appendChild(label);
+                    optEl.appendChild(check);
+                    optionsDiv.appendChild(optEl);
+
+                    if (opt.value === select.value) {
+                        optEl.classList.add('selected');
+                    }
+
+                    optEl.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        select.value = opt.value;
+                        
+                        // Dispatch change event to update C# binding and trigger update
+                        select.dispatchEvent(new Event('change', { bubbles: true }));
+                        
+                        optionsDiv.classList.add('hidden');
+                        container.classList.remove('open');
+                    });
+                });
+
+                container.appendChild(optionsDiv);
+                select.parentNode.insertBefore(container, select.nextSibling);
+
+                // Trigger toggle list
+                trigger.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isOpen = !optionsDiv.classList.contains('hidden');
+                    
+                    // Close all other dropdowns first
+                    document.querySelectorAll('.custom-select-options').forEach(el => el.classList.add('hidden'));
+                    document.querySelectorAll('.custom-select-container').forEach(el => el.classList.remove('open'));
+
+                    if (!isOpen) {
+                        optionsDiv.classList.remove('hidden');
+                        container.classList.add('open');
+                    }
+                });
+
+                // Listen to changes on original select to synchronize
+                select.addEventListener('change', () => {
+                    const currentVal = select.value;
+                    const matchingOpt = Array.from(select.options).find(o => o.value === currentVal);
+                    if (matchingOpt) {
+                        selectedText.innerText = matchingOpt.text;
+                    }
+                    
+                    // Update selected class
+                    optionsDiv.querySelectorAll('.custom-select-option').forEach(optEl => {
+                        if (optEl.getAttribute('data-value') === currentVal) {
+                            optEl.classList.add('selected');
+                        } else {
+                            optEl.classList.remove('selected');
+                        }
+                    });
+                });
+            });
+
+            // Close all custom select dropdowns when clicking outside
+            document.addEventListener('click', () => {
+                document.querySelectorAll('.custom-select-options').forEach(el => el.classList.add('hidden'));
+                document.querySelectorAll('.custom-select-container').forEach(el => el.classList.remove('open'));
+            });
+        }
+
+        const cliParameters = [
+            {
+                key: "-batchmode",
+                category: "System",
+                descRu: "Запуск сервера в фоновом консольном режиме (без запуска графического окна Unity). Обязательно для работы выделенного сервера.",
+                descEn: "Runs the server in headless console mode (without launching a Unity graphics window). Mandatory for dedicated servers.",
+                type: "flag",
+                tab: null
+            },
+            {
+                key: "-nographics",
+                category: "System",
+                descRu: "Отключает инициализацию графического процессора Unity. Значительно снижает потребление оперативной памяти (RAM) и процессора (CPU).",
+                descEn: "Disables the Unity graphics device. Significantly reduces RAM and CPU usage.",
+                type: "flag",
+                tab: null
+            },
+            {
+                key: "-silent-crashes",
+                category: "System",
+                descRu: "Подавляет стандартные диалоговые окна Unity при сбоях, позволяя внешним утилитам автоматически перезапустить упавший сервер.",
+                descEn: "Suppresses Unity's crash handler dialogs, allowing automated crash-recovery tools to restart the server immediately.",
+                type: "flag",
+                tab: null
+            },
+            {
+                key: "-navdisable",
+                category: "Performance",
+                descRu: "Отключает генерацию сетки ИИ (Navmesh). Существенно ускоряет загрузку сервера и освобождает несколько гигабайт RAM (ИИ ученых и животных отключается).",
+                descEn: "Disables AI navigation mesh generation. Drastically speeds up startup time and frees up several gigabytes of RAM (AI scientists and animals will stop moving).",
+                type: "flag",
+                tab: null
+            },
+            {
+                key: "-server.fps <число>",
+                category: "Performance",
+                descRu: "Ограничивает максимальный FPS симуляции сервера (по умолчанию 256). Снижение до 60-120 уменьшает нагрузку на процессор.",
+                descEn: "Clamps the maximum server simulation framerate (default is 256). Lowering to 60-120 decreases CPU consumption.",
+                type: "value",
+                defaultValue: "256",
+                tab: null
+            },
+            {
+                key: "-logfile \"<путь>\"",
+                category: "System",
+                descRu: "Записывает весь консольный вывод и логи сервера в указанный текстовый файл (например, server_log.txt).",
+                descEn: "Directs all server console output and logs to the specified file (e.g. server_log.txt).",
+                type: "value",
+                defaultValue: "server_log.txt",
+                tab: null
+            },
+            {
+                key: "+server.ip <ip>",
+                category: "Network",
+                descRu: "Сетевой IP-адрес для привязки сервера. Значение 0.0.0.0 означает прослушивание всех доступных интерфейсов хоста.",
+                descEn: "The network IP address to bind the game server to. 0.0.0.0 listens on all available host interfaces.",
+                type: "value",
+                defaultValue: "0.0.0.0",
+                tab: "network",
+                inputId: "cfg-ip"
+            },
+            {
+                key: "+server.port <порт>",
+                category: "Network",
+                descRu: "Основной игровой порт сервера Rust (протокол UDP). Используется игроками для прямого подключения. По умолчанию: 28015.",
+                descEn: "The primary game port of the Rust server (UDP protocol). Used by players for direct connections. Default: 28015.",
+                type: "value",
+                defaultValue: "28015",
+                tab: "network",
+                inputId: "cfg-port"
+            },
+            {
+                key: "+server.queryport <порт>",
+                category: "Network",
+                descRu: "Порт запросов для отображения сервера в списке Steam и мониторингах (протокол UDP). По умолчанию: 28016.",
+                descEn: "The query port used to display the server in Steam's server browser and monitoring services (UDP). Default: 28016.",
+                type: "value",
+                defaultValue: "28016",
+                tab: "network",
+                inputId: "cfg-queryport"
+            },
+            {
+                key: "+rcon.port <порт>",
+                category: "Network",
+                descRu: "Сетевой порт для удаленного управления сервером через консоль RCON (протокол TCP). По умолчанию: 28017.",
+                descEn: "The network port used for remote administration via RCON console (TCP). Default: 28017.",
+                type: "value",
+                defaultValue: "28017",
+                tab: "network",
+                inputId: "cfg-rconport"
+            },
+            {
+                key: "+rcon.password \"<пароль>\"",
+                category: "Network",
+                descRu: "Пароль для авторизации в удаленной консоли RCON. Должен быть сложным.",
+                descEn: "The password required to authenticate with the remote RCON console. Must be kept secure.",
+                type: "value",
+                tab: "network",
+                inputId: "cfg-rconpassword"
+            },
+            {
+                key: "+rcon.web 1/0",
+                category: "Network",
+                descRu: "Включает поддержку WebSocket подключений RCON (1 = Websockets, 0 = старый TCP протокол).",
+                descEn: "Enables support for modern WebSocket RCON connections (1 = Websockets, 0 = legacy raw TCP protocol).",
+                type: "toggle",
+                tab: "network",
+                inputId: "cfg-rconweb"
+            },
+            {
+                key: "+server.identity \"<имя>\"",
+                category: "System",
+                descRu: "Имя папки сервера для сохранения карты, БД и логов. По умолчанию: rustserver.",
+                descEn: "Unique folder name for the server saves, databases and logs. Default: rustserver.",
+                type: "value",
+                defaultValue: "rustserver",
+                tab: "identity",
+                inputId: "cfg-identity"
+            },
+            {
+                key: "+server.hostname \"<имя>\"",
+                category: "Identity",
+                descRu: "Публичное название вашего сервера, отображаемое в клиенте Rust. Поддерживает форматирование и цветной текст.",
+                descEn: "Public hostname of your server displayed in the Rust client search. Supports formatting and colors.",
+                type: "value",
+                tab: "identity",
+                inputId: "cfg-hostname"
+            },
+            {
+                key: "+server.description \"<текст>\"",
+                category: "Identity",
+                descRu: "Описание сервера, которое игроки видят при подключении и выборе сервера в меню.",
+                descEn: "The server description players see when selecting the server in the client menu.",
+                type: "value",
+                tab: "identity",
+                inputId: "cfg-description"
+            },
+            {
+                key: "+server.url \"<url>\"",
+                category: "Identity",
+                descRu: "Ссылка на ваш сайт, веб-магазин или Discord. Открывается при нажатии кнопки 'Visit Website' в игре.",
+                descEn: "Link to your website, web store, or Discord server. Opens when clicking 'Visit Website' in-game.",
+                type: "value",
+                tab: "identity",
+                inputId: "cfg-url"
+            },
+            {
+                key: "+server.headerimage \"<url>\"",
+                category: "Identity",
+                descRu: "URL-ссылка на фоновое изображение сервера (баннер 1024x512 JPG/PNG), показываемое при загрузке.",
+                descEn: "URL to the server banner image (1024x512 JPG/PNG) displayed to players while connecting.",
+                type: "value",
+                tab: "identity",
+                inputId: "cfg-headerimage"
+            },
+            {
+                key: "+server.seed <число>",
+                category: "Map",
+                descRu: "Числовой код генерации процедурной карты (от 1 до 2147483647). Определяет расположение островов, дорог и монументов.",
+                descEn: "The numeric seed used for procedural map generation (1 to 2147483647). Controls layout of islands, roads, and monuments.",
+                type: "value",
+                tab: "world",
+                inputId: "cfg-seed"
+            },
+            {
+                key: "+server.worldsize <размер>",
+                category: "Map",
+                descRu: "Размер игровой карты в метрах (диапазон: 1000–6000). Больший размер требует больше RAM хоста.",
+                descEn: "The size of the map in meters (range: 1000–6000). Larger maps require substantially more host RAM.",
+                type: "value",
+                tab: "world",
+                inputId: "cfg-worldsize"
+            },
+            {
+                key: "+server.level \"<карта>\"",
+                category: "Map",
+                descRu: "Указывает конкретный тип карты (Procedural Map, Barren, Hapi Island или кастомное название).",
+                descEn: "Specifies the map level preset (Procedural Map, Barren, Hapi Island, or custom map name).",
+                type: "value",
+                tab: "world",
+                inputId: "cfg-maplevel"
+            },
+            {
+                key: "+server.levelurl \"<url>\"",
+                category: "Map",
+                descRu: "Прямая ссылка для скачивания файла кастомной карты (.map). Загружается сервером при старте.",
+                descEn: "Direct download link for a custom map (.map file). Downloaded automatically by the server on boot.",
+                type: "value",
+                tab: "world",
+                inputId: "cfg-levelurl"
+            },
+            {
+                key: "+server.maxplayers <число>",
+                category: "Gameplay",
+                descRu: "Лимит максимального количества одновременно играющих игроков на сервере.",
+                descEn: "The limit of maximum concurrent player slots allowed on the server.",
+                type: "value",
+                tab: "world",
+                inputId: "cfg-maxplayers"
+            },
+            {
+                key: "+server.tickrate <число>",
+                category: "Performance",
+                descRu: "Количество расчетов физики и логики в секунду (по умолчанию 30). Выше 30 улучшает хитбоксы, но нагружает CPU.",
+                descEn: "The frequency of server simulation steps per second (default 30). Higher improves hitbox registration but strains host CPU.",
+                type: "value",
+                tab: "world",
+                inputId: "cfg-tickrate"
+            },
+            {
+                key: "+server.saveinterval <секунды>",
+                category: "System",
+                descRu: "Периодичность автосохранения игрового мира и построек на жесткий диск в секундах. Стандартное: 300.",
+                descEn: "The interval in seconds between automatic server map saves to disk. Default: 300.",
+                type: "value",
+                tab: "gameplay",
+                inputId: "cfg-saveinterval"
+            },
+            {
+                key: "+server.pvp 1/0",
+                category: "Gameplay",
+                descRu: "Режим боя (1 = включено PVP, разрешен урон по игрокам; 0 = PVE, урон по игрокам отключен).",
+                descEn: "PVP combat mode (1 = enabled, players can damage each other; 0 = PVE mode, player damage disabled).",
+                type: "toggle",
+                tab: "gameplay",
+                inputId: "cfg-pvp"
+            },
+            {
+                key: "+server.stability 1/0",
+                category: "Gameplay",
+                descRu: "Физика структурной стабильности построек (1 = здания требуют опоры и рушатся при их потере; 0 = физика выключена).",
+                descEn: "Controls structural stability physics (1 = buildings require support and collapse when unsupported; 0 = disabled).",
+                type: "toggle",
+                tab: "gameplay",
+                inputId: "cfg-stability"
+            },
+            {
+                key: "+server.radiation 1/0",
+                category: "Gameplay",
+                descRu: "Включает или выключает радиацию на РТ (монументах) и промышленных зонах.",
+                descEn: "Enables or disables environmental radiation zones around monuments and industrial areas.",
+                type: "toggle",
+                tab: "gameplay",
+                inputId: "cfg-radiation"
+            },
+            {
+                key: "+chat.global 1/0",
+                category: "Gameplay",
+                descRu: "Разрешить или запретить игрокам писать сообщения в общий серверный текстовый чат.",
+                descEn: "Enables or disables the server-wide global public text chat.",
+                type: "toggle",
+                tab: "gameplay",
+                inputId: "cfg-globalchat"
+            },
+            {
+                key: "+decay.upkeep true/false",
+                category: "Gameplay",
+                descRu: "Включает необходимость класть ресурсы в шкаф для предотвращения гниения построек.",
+                descEn: "Enables or disables Tool Cupboard resource consumption to prevent base decay.",
+                type: "toggle",
+                tab: "gameplay",
+                inputId: "cfg-upkeep"
+            },
+            {
+                key: "+decay.scale <число>",
+                category: "Gameplay",
+                descRu: "Множитель скорости разрушения (гниения) построек без содержания (1.0 = стандарт, 0 = полностью отключает гниение).",
+                descEn: "The multiplier for building decay speed when lacking upkeep resources (1.0 = default, 0 = disables decay).",
+                type: "value",
+                tab: "gameplay",
+                inputId: "cfg-decayscale"
+            },
+            {
+                key: "+craft.instant true/false",
+                category: "Gameplay",
+                descRu: "Активирует мгновенное создание (крафт) предметов для всех игроков без ожидания таймеров.",
+                descEn: "Enables instant crafting of items for all players, bypassing standard crafting durations.",
+                type: "toggle",
+                tab: "gameplay",
+                inputId: "cfg-instantcraft"
+            },
+            {
+                key: "+relationshipmanager.maxteamSize <число>",
+                category: "Gameplay",
+                descRu: "Максимальное разрешенное количество участников в одной команде. По умолчанию: 8.",
+                descEn: "The maximum number of players allowed in a single team. Default: 8.",
+                type: "value",
+                tab: "gameplay",
+                inputId: "cfg-maxteamsize"
+            },
+            {
+                key: "+heli.lifespan <минуты>",
+                category: "Gameplay",
+                descRu: "Максимальное время нахождения патрульного вертолета на карте до его улета за зону видимости.",
+                descEn: "The maximum duration in minutes the patrol helicopter will remain on the map before leaving.",
+                type: "value",
+                tab: "gameplay",
+                inputId: "cfg-helilifespan"
+            },
+            {
+                key: "+env.daylength <минуты>",
+                category: "Gameplay",
+                descRu: "Продолжительность дневного времени суток в реальных минутах. По умолчанию: 45.",
+                descEn: "The duration of day time in real-world minutes. Default: 45.",
+                type: "value",
+                tab: "gameplay",
+                inputId: "cfg-daylength"
+            },
+            {
+                key: "+env.nightlength <минуты>",
+                category: "Gameplay",
+                descRu: "Продолжительность ночного времени суток в реальных минутах. По умолчанию: 15.",
+                descEn: "The duration of night time in real-world minutes. Default: 15.",
+                type: "value",
+                tab: "gameplay",
+                inputId: "cfg-nightlength"
+            },
+            {
+                key: "+server.secure 1/0",
+                category: "Security",
+                descRu: "Включает защиту сервера с помощью Valve Anti-Cheat и Easy Anti-Cheat (EAC). Обязательно для публичных серверов.",
+                descEn: "Enables official Valve Anti-Cheat (VAC) and Easy Anti-Cheat (EAC) protection. Recommended for public servers.",
+                type: "toggle",
+                tab: "security",
+                inputId: "cfg-secure"
+            },
+            {
+                key: "+server.maxconnectionsperip <число>",
+                category: "Security",
+                descRu: "Лимит одновременных подключений игроков с одного IP-адреса. Помогает защитить сервер от DDoS и ботнет-атак.",
+                descEn: "Limits concurrent player connections from a single IP address. Shields the server from DDoS and botnet joins.",
+                type: "value",
+                tab: "security",
+                inputId: "cfg-maxconnectionsperip"
+            },
+            {
+                key: "+antihack.enabled 1/0",
+                category: "Security",
+                descRu: "Включает встроенные серверные проверки Rust на запрещенные перемещения и нарушения физики.",
+                descEn: "Enables Rust's internal antihack checks for flight, speed, and noclip violations.",
+                type: "toggle",
+                tab: "security",
+                inputId: "cfg-antihack"
+            },
+            {
+                key: "+server.tags \"<теги>\"",
+                category: "Identity",
+                descRu: "Тэги сервера для категоризации в списке Rust (через запятую, например: weekly,pve,ru). Максимум 3 тега.",
+                descEn: "Comma-separated search tags for server list categorization (e.g. weekly,pve,ru). Maximum of 3 tags allowed.",
+                type: "value",
+                tab: null
+            },
+            {
+                key: "+server.logoimage \"<url>\"",
+                category: "Identity",
+                descRu: "Ссылка на логотип-иконку сервера для списка серверов.",
+                descEn: "Direct URL to a square logo image displayed next to the server name in the server list.",
+                type: "value",
+                tab: null
+            },
+            {
+                key: "+ai.think 1/0",
+                category: "Gameplay",
+                descRu: "Разрешает ИИ животных и ученых принимать решения и реагировать на действия игроков. Если отключено, они стоят на месте.",
+                descEn: "Enables or disables NPC and animal logic tick loops. When disabled, AI will stand completely still.",
+                type: "toggle",
+                tab: null
+            },
+            {
+                key: "+ai.move 1/0",
+                category: "Gameplay",
+                descRu: "Включает возможность ИИ животных и ученых перемещаться по сгенерированной сетке путей (Navmesh).",
+                descEn: "Enables or disables animal and NPC movement path calculations across the Navmesh.",
+                type: "toggle",
+                tab: null
+            },
+            {
+                key: "+physics.steps <число>",
+                category: "Performance",
+                descRu: "Количество шагов физического симулятора за один тик сервера (по умолчанию 16). Снижение до 8-12 разгружает сервер.",
+                descEn: "The number of physics simulation steps run per server tick (default: 16). Lowering to 8-12 decreases CPU load.",
+                type: "value",
+                defaultValue: "16",
+                tab: null
+            },
+            {
+                key: "+pool.clear_assets 1",
+                category: "Performance",
+                descRu: "Команда принудительной выгрузки и очистки неиспользуемых ассетов из памяти RAM при смене карты (вайпе).",
+                descEn: "Forces immediate garbage collection and pooling asset cleanup to free up host RAM during map change.",
+                type: "flag",
+                tab: null
+            }
+        ];
+
+        const categoryTranslations = {
+            ru: {
+                System: "Система",
+                Network: "Сеть",
+                Map: "Мир",
+                Gameplay: "Геймплей",
+                Security: "Безопасность",
+                Performance: "Производительность",
+                all: "Все"
+            },
+            en: {
+                System: "System",
+                Network: "Network",
+                Map: "Map",
+                Gameplay: "Gameplay",
+                Security: "Security",
+                Performance: "Performance",
+                all: "All"
+            }
+        };
+
+        let activeCliCategory = 'all';
+
+        function updateCliPreview() {
+            const identity = document.getElementById('cfg-identity')?.value || 'rustserver';
+            const additionalArgs = document.getElementById('cfg-args')?.value || '';
+            const ip = document.getElementById('cfg-ip')?.value || '0.0.0.0';
+            const port = document.getElementById('cfg-port')?.value || 28015;
+            const queryport = document.getElementById('cfg-queryport')?.value || 28016;
+            const hostname = document.getElementById('cfg-hostname')?.value || 'RUST DEV LAB';
+            const maxplayers = document.getElementById('cfg-maxplayers')?.value || 100;
+            const maplevel = document.getElementById('cfg-maplevel')?.value || 'Procedural Map';
+            const worldsize = document.getElementById('cfg-worldsize')?.value || 3000;
+            const seed = document.getElementById('cfg-seed')?.value || 12345;
+            const tickrate = document.getElementById('cfg-tickrate')?.value || 30;
+            const rconport = document.getElementById('cfg-rconport')?.value || 28017;
+            const rconpassword = document.getElementById('cfg-rconpassword')?.value || '';
+            const rconweb = isActive('cfg-rconweb') ? '1' : '0';
+            const upkeep = isActive('cfg-upkeep') ? 'true' : 'false';
+            const decayscale = document.getElementById('cfg-decayscale')?.value || '1.0';
+            const instantcraft = isActive('cfg-instantcraft') ? 'true' : 'false';
+            const maxteamsize = document.getElementById('cfg-maxteamsize')?.value || 8;
+            const helilifespan = document.getElementById('cfg-helilifespan')?.value || 45;
+            const daylength = document.getElementById('cfg-daylength')?.value || 45;
+            const nightlength = document.getElementById('cfg-nightlength')?.value || 15;
+            const maxconnectionsperip = document.getElementById('cfg-maxconnectionsperip')?.value || 5;
+            const levelurl = document.getElementById('cfg-levelurl')?.value || '';
+
+            let cli = `RustDedicated.exe +server.identity "${identity}" ${additionalArgs} +server.ip ${ip} +server.port ${port} +server.queryport ${queryport} +server.hostname "${hostname}" +server.maxplayers ${maxplayers} +server.level "${maplevel}" +server.worldsize ${worldsize} +server.seed ${seed} +server.tickrate ${tickrate} +rcon.port ${rconport} +rcon.password "${rconpassword}" +rcon.web ${rconweb} +decay.upkeep ${upkeep} +decay.scale ${decayscale} +craft.instant ${instantcraft} +relationshipmanager.maxteamSize ${maxteamsize} +heli.lifespan ${helilifespan} +env.daylength ${daylength} +env.nightlength ${nightlength} +server.maxconnectionsperip ${maxconnectionsperip}`;
+            
+            if (levelurl) {
+                cli += ` +server.levelurl "${levelurl}"`;
+            }
+            cli += ` +oxide.directory "oxide"`;
+
+            const previewEl = document.getElementById('cli-preview');
+            if (previewEl) {
+                previewEl.innerText = cli;
+            }
+        }
+
+        function copyCliPreview() {
+            const previewText = document.getElementById('cli-preview')?.innerText || '';
+            navigator.clipboard.writeText(previewText).then(() => {
+                const toast = document.getElementById('toast');
+                if (toast) {
+                    const originalText = toast.innerHTML;
+                    const dict = translations[currentLang];
+                    toast.innerHTML = dict['toast_copied'] || 'Copied!';
+                    toast.style.display = 'block';
+                    setTimeout(() => {
+                        toast.style.display = 'none';
+                        toast.innerHTML = originalText;
+                    }, 2000);
+                }
+            });
+        }
+
+        function renderCliParams() {
+            const container = document.getElementById('cli-params-container');
+            if (!container) return;
+            
+            const searchVal = (document.getElementById('cli-search')?.value || '').toLowerCase().trim();
+            let html = '';
+            const sortedParams = [...cliParameters].sort((a, b) => a.key.localeCompare(b.key));
+            
+            sortedParams.forEach(param => {
+                if (activeCliCategory !== 'all' && param.category !== activeCliCategory) return;
+                
+                const desc = currentLang === 'ru' ? param.descRu : param.descEn;
+                if (searchVal && 
+                    !param.key.toLowerCase().includes(searchVal) && 
+                    !param.category.toLowerCase().includes(searchVal) && 
+                    !desc.toLowerCase().includes(searchVal)) {
+                    return;
+                }
+                
+                const isTabLinked = param.tab !== null && param.inputId !== null;
+                const buttonText = isTabLinked 
+                    ? (currentLang === 'ru' ? 'Настроить' : 'Configure')
+                    : (currentLang === 'ru' ? 'Добавить' : 'Add');
+                
+                const actionIcon = isTabLinked ? 'fa-external-link-alt' : 'fa-plus';
+                const catTranslated = categoryTranslations[currentLang][param.category] || param.category;
+                const globalIndex = cliParameters.indexOf(param);
+                
+                html += `
+                    <div class="cli-param-card flex items-start justify-between gap-4 rounded border border-white/5 bg-white/[0.01] p-3 hover:bg-white/[0.02]">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <code class="text-xs font-mono font-bold text-red-500">${param.key}</code>
+                                <span class="text-[8px] px-1.5 py-0.5 bg-red-950/40 text-red-400 font-bold uppercase tracking-wider rounded border border-red-500/10">${catTranslated}</span>
+                                ${param.type === 'flag' ? `<span class="text-[8px] px-1.5 py-0.5 bg-white/5 text-white/50 font-bold uppercase tracking-wider rounded border border-white/5">Flag</span>` : ''}
+                            </div>
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed">${desc}</p>
+                        </div>
+                        <button onclick="handleCliParamAction(${globalIndex})" 
+                                class="cyber-btn whitespace-nowrap px-3 py-1.5 text-[8px] flex-shrink-0 no-drag">
+                            <i class="fas ${actionIcon} mr-1"></i> ${buttonText}
+                        </button>
+                    </div>
+                `;
+            });
+            
+            if (!html) {
+                html = `
+                    <div class="text-center py-8 text-gray-500 text-[10px] uppercase font-bold tracking-wider">
+                        ${currentLang === 'ru' ? 'Параметры не найдены' : 'No parameters found'}
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        function setCliCategory(category) {
+            activeCliCategory = category;
+            document.querySelectorAll('.cli-filter-btn').forEach(btn => {
+                if (btn.getAttribute('data-category') === category) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            renderCliParams();
+        }
+
+        function filterCliParams() {
+            renderCliParams();
+        }
+
+        function handleCliParamAction(index) {
+            const param = cliParameters[index];
+            if (!param) return;
+            
+            const tabId = param.tab;
+            const inputId = param.inputId;
+            const type = param.type;
+            const key = param.key;
+            
+            if (tabId && inputId) {
+                const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+                if (tabBtn) {
+                    tabBtn.click();
+                }
+                const inputEl = document.getElementById(inputId);
+                if (inputEl) {
+                    inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    inputEl.focus();
+                    inputEl.classList.add('highlight-glow');
+                    setTimeout(() => {
+                        inputEl.classList.remove('highlight-glow');
+                    }, 3000);
+                }
+            } else {
+                const argsInput = document.getElementById('cfg-args');
+                if (argsInput) {
+                    let val = argsInput.value.trim();
+                    let cleanKey = key.split(' ')[0];
+                    
+                    if (val.includes(cleanKey)) {
+                        argsInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        argsInput.focus();
+                        argsInput.classList.add('highlight-glow');
+                        setTimeout(() => { argsInput.classList.remove('highlight-glow'); }, 2000);
+                        return;
+                    }
+                    
+                    let insertVal = cleanKey;
+                    if (type === 'value') {
+                        const defaultValue = param.defaultValue || '1';
+                        insertVal = `${cleanKey} ${defaultValue}`;
+                    }
+                    
+                    argsInput.value = val ? `${val} ${insertVal}` : insertVal;
+                    argsInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    argsInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    
+                    argsInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    argsInput.focus();
+                    argsInput.classList.add('highlight-glow');
+                    setTimeout(() => { argsInput.classList.remove('highlight-glow'); }, 2000);
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+
+            updateLocalization();
+
+            initCustomSelects();
+
+            // Request current config on load
+
+            safePostMessage({ action: 'get_server_config' });
+
+            // Listen to all inputs to update the CLI preview
+            document.querySelectorAll('input, select, textarea').forEach(el => {
+                el.addEventListener('input', updateCliPreview);
+                el.addEventListener('change', updateCliPreview);
+            });
+            
+            // Listen to clicks on toggles
+            document.querySelectorAll('.toggle-switch').forEach(sw => {
+                sw.addEventListener('click', () => {
+                    setTimeout(updateCliPreview, 50);
+                });
+            });
+
+            setTimeout(() => {
+                renderCliParams();
+                updateCliPreview();
+            }, 100);
+
+        });
+
+    </script>
+
+</body>
+
+</html>
+

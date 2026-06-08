@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+
+    
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TRP ORCHESTRATOR | SYSTEM INITIALIZATION</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="theme.css">
+    <style>
+        :root {
+            --neon-red: #ff0000;
+            --dark-red: #4a0000;
+            --glass-bg: rgba(5, 5, 5, 0.9);
+            --neon-glow: 0 0 20px rgba(255, 0, 0, 0.5);
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 1. ANIMATED PERSPECTIVE BACKGROUND */
+        .bg-container {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: radial-gradient(circle at center, #1a0000 0%, #000 90%);
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .grid-plane {
+            position: absolute;
+            bottom: -50%; left: -50%; width: 200%; height: 200%;
+            background-image: 
+                linear-gradient(rgba(255, 0, 0, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.05) 1px, transparent 1px);
+            background-size: 60px 60px;
+            transform: perspective(600px) rotateX(45deg);
+            animation: grid-move 30s linear infinite;
+        }
+
+        @keyframes grid-move {
+            0% { transform: perspective(600px) rotateX(45deg) translateY(0); }
+            100% { transform: perspective(600px) rotateX(45deg) translateY(60px); }
+        }
+
+        .scanlines {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* 2. LOGO & STATS */
+        .cyber-logo {
+            font-size: 4rem;
+            font-weight: 900;
+            font-style: italic;
+            text-transform: uppercase;
+            color: white;
+            text-shadow: var(--neon-glow);
+            letter-spacing: -2px;
+            margin-bottom: 0.5rem;
+        }
+
+        .panel-desc {
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: 0.8em;
+            color: rgba(255, 0, 0, 0.4);
+            text-transform: uppercase;
+            margin-bottom: 2rem;
+        }
+
+        /* 3. CENTRAL LOADING BAR (ENERGY RAIL) */
+        .loading-container {
+            width: 100%;
+            max-width: 400px;
+            position: relative;
+            margin-bottom: 3rem;
+            z-index: 20;
+            padding: 0 20px;
+        }
+
+        .percentage {
+            font-family: 'RustLCD', 'JetBrains Mono', monospace;
+            font-size: 3rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 1rem;
+            text-shadow: var(--neon-glow);
+        }
+
+        .progress-rail {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 0px !important;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background: var(--neon-red);
+            box-shadow: 0 0 20px var(--neon-red);
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0; width: 40px; height: 100%;
+            background: linear-gradient(90deg, transparent, #fff);
+            filter: blur(5px);
+            opacity: 0.6;
+        }
+
+        /* 4. SEQUENTIAL TILES */
+        .tile-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            width: 100%;
+            max-width: 100%;
+            z-index: 20;
+            margin: 0 auto;
+        }
+
+        .tile {
+            flex: 0 1 180px;
+            background: var(--glass-bg);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            padding: 15px;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-sizing: border-box;
+        }
+
+        .tile.active {
+            opacity: 1;
+            transform: translateY(0);
+            border-color: rgba(255, 0, 0, 0.2);
+            box-shadow: inset 0 0 15px rgba(255, 0, 0, 0.05);
+        }
+
+        .tile i {
+            font-size: 16px;
+            color: var(--neon-red);
+            filter: drop-shadow(0 0 5px var(--neon-red));
+            margin-bottom: 10px;
+        }
+
+        .tile-title {
+            font-size: 8px;
+            font-weight: 900;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .tile-detail {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: #aaa;
+            line-height: 1.2;
+        }
+
+        .tile-status-icon {
+            width: 5px; height: 5px; border-radius: 50%;
+            background: #222; margin-top: 10px;
+            transition: background 0.3s;
+        }
+
+        .tile-status-icon.done { background: #00ff00; box-shadow: 0 0 10px #00ff00; }
+        .tile-status-icon.warn { background: #ffaa00; box-shadow: 0 0 10px #ffaa00; }
+        .tile-status-icon.err { background: #ff0000; box-shadow: 0 0 10px #ff0000; }
+
+        /* 5. START SYSTEM */
+        .btn-init {
+            margin-top: 40px;
+            height: 50px;
+            width: 300px;
+            background: transparent;
+            border: 1px solid var(--neon-red);
+            color: var(--neon-red);
+            font-weight: 900;
+            font-size: 11px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s;
+            opacity: 0;
+            visibility: hidden;
+            z-index: 30;
+        }
+
+        .btn-init.show {
+            opacity: 1; visibility: visible;
+        }
+
+        .btn-init:hover {
+            background: var(--neon-red);
+            color: #fff;
+            box-shadow: 0 0 40px var(--neon-red);
+            transform: scale(1.02);
+        }
+
+        .no-drag { -webkit-app-region: no-drag; }
+    </style>
+
+    <script defer src="js/alpine.min.js"></script>
+
+</head>
+
+<body onmousedown="onDrag(event)" style="width: 100vw; height: 100vh; margin: 0; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+
+    <div class="bg-container">
+
+        <div class="grid-plane"></div>
+
+        <div class="scanlines"></div>
+
+    </div>
+
+    <div class="flex flex-col items-center w-full px-8 box-border">
+
+        <!-- HEADER -->
+
+        <h1 class="cyber-logo pixel-font text-primary">TRP ORCHESTRATOR</h1>
+
+        <div class="panel-desc" data-i18n="header_sub">Smart Infrastructure // Kernel Initialization // STABLE</div>
+
+        <!-- LOADING AREA -->
+
+        <div class="loading-container flex flex-col items-center">
+
+            <div id="percentage-text" class="percentage">0%</div>
+
+            <div class="progress-rail">
+
+                <div id="progress-bar" class="progress-fill"></div>
+
+            </div>
+
+        </div>
+
+        <!-- SEQUENTIAL TILES GRID -->
+
+        <div class="tile-grid">
+
+            <!-- 01 Admin -->
+
+            <div class="tile" id="tile-admin">
+
+                <i class="fas fa-shield-halved"></i>
+
+                <div class="tile-title" data-i18n="tile_security">Security</div>
+
+                <div class="tile-detail" id="detail-admin" data-i18n="status_waiting">Waiting...</div>
+
+                <div class="tile-status-icon"></div>
+
+            </div>
+
+            <!-- 02 Env -->
+
+            <div class="tile" id="tile-env">
+
+                <i class="fas fa-microchip"></i>
+
+                <div class="tile-title" data-i18n="tile_library">Library</div>
+
+                <div class="tile-detail" id="detail-env" data-i18n="status_waiting">Waiting...</div>
+
+                <div class="tile-status-icon"></div>
+
+            </div>
+
+            <!-- 03 Net -->
+
+            <div class="tile" id="tile-net">
+
+                <i class="fas fa-satellite-dish"></i>
+
+                <div class="tile-title" data-i18n="tile_cloud">Cloud</div>
+
+                <div class="tile-detail" id="detail-net" data-i18n="status_waiting">Waiting...</div>
+
+                <div class="tile-status-icon"></div>
+
+            </div>
+
+            <!-- 04 Storage -->
+
+            <div class="tile" id="tile-disk">
+
+                <i class="fas fa-database"></i>
+
+                <div class="tile-title" data-i18n="tile_storage">Storage</div>
+
+                <div class="tile-detail" id="detail-disk" data-i18n="status_waiting">Waiting...</div>
+
+                <div class="tile-status-icon"></div>
+
+            </div>
+
+            <!-- 05 Core -->
+
+            <div class="tile" id="tile-steam">
+
+                <i class="fas fa-engine-warning"></i>
+
+                <div class="tile-title" data-i18n="tile_engine">Engine</div>
+
+                <div class="tile-detail" id="detail-steam" data-i18n="status_waiting">Waiting...</div>
+
+                <div class="tile-status-icon"></div>
+
+            </div>
+
+        </div>
+
+        <!-- START SYSTEM -->
+
+        <button onclick="enterSystem()" id="start-btn" class="btn-init no-drag">
+
+            <span data-i18n="btn_initiate">Initialize Dashboard</span> <i class="fas fa-chevron-right ml-4"></i>
+
+        </button>
+
+        <!-- HIDDEN FIX BUTTON -->
+
+        <div id="fix-container" class="hidden mt-8 no-drag">
+
+            <button onclick="fixIt()" class="text-[9px] font-black text-red-500 border border-red-500/20 px-4 py-2 hover:bg-red-500/10" data-i18n="btn_restore">
+
+                RESTORE CORE ENGINE
+
+            </button>
+
+        </div>
+
+    </div>
+
+    <script>
+        function safePostMessage(obj) {
+            if (window.chrome && window.chrome.webview) {
+                try { window.chrome.webview.postMessage(obj); } catch (e) { }
+            }
+        }
+
+        function onDrag(e) {
+            if (e.target.closest('button, input, select, textarea, .no-drag')) return;
+            safePostMessage({ action: "drag" });
+        }
+
+
+        const translations = {
+
+            ru: {
+
+                header_sub: "Умная инфраструктура // Инициализация ядра // СТАБИЛЬНАЯ",
+
+                tile_security: "Безопасность",
+
+                tile_library: "Библиотеки",
+
+                tile_cloud: "Облако",
+
+                tile_storage: "Хранилище",
+
+                tile_engine: "Движок",
+
+                status_waiting: "Ожидание...",
+
+                btn_initiate: "Запустить панель",
+
+                btn_restore: "ВОССТАНОВИТЬ ЯДРО СИСТЕМЫ",
+
+                btn_restoring: "ВОССТАНОВЛЕНИЕ...",
+
+                detail_admin_ok: "Права администратора подтверждены",
+
+                detail_admin_warn: "Обычный пользователь (Ограничения)",
+
+                detail_env_ok: "Среда .NET активна",
+
+                detail_net_ok: "Сервисы Steam достижимы",
+
+                detail_net_err: "Нет интернет-соединения",
+
+                detail_disk_err: "Недостаточно места (нужно 20ГБ)",
+
+                detail_steam_ok: "Ядро SteamCMD готово",
+
+                detail_steam_err: "Ядро SteamCMD отсутствует"
+
+            },
+
+            en: {
+
+                header_sub: "Smart Infrastructure // Kernel Initialization // STABLE",
+
+                tile_security: "Security",
+
+                tile_library: "Library",
+
+                tile_cloud: "Cloud",
+
+                tile_storage: "Storage",
+
+                tile_engine: "Engine",
+
+                status_waiting: "Waiting...",
+
+                btn_initiate: "Initialize Dashboard",
+
+                btn_restore: "RESTORE CORE ENGINE",
+
+                btn_restoring: "RESTORING...",
+
+                detail_admin_ok: "Administrator Access Verified",
+
+                detail_admin_warn: "Standard User (Limited Perms)",
+
+                detail_env_ok: ".NET Runtime Active",
+
+                detail_net_ok: "Steam Services Reachable",
+
+                detail_net_err: "No Internet Connection",
+
+                detail_disk_err: "Low Disk Space (20GB Required)",
+
+                detail_steam_ok: "SteamCMD Engine Ready",
+
+                detail_steam_err: "SteamCMD Engine Missing"
+
+            }
+
+        };
+
+        let currentLang = localStorage.getItem('trp_lang') || 'ru';
+
+        function updateLocalization() {
+
+            const dict = translations[currentLang];
+
+            if (!dict) return;
+
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+
+                const key = el.getAttribute('data-i18n');
+
+                if (dict[key]) el.innerHTML = dict[key];
+
+            });
+
+        }
+
+        function enterSystem() { 
+
+            if (window.chrome && window.chrome.webview) {
+
+                window.chrome.webview.postMessage({ action: "ready_to_launch" });
+
+            } else {
+
+                window.parent.postMessage({action:'close_subpage'},'*');
+
+            }
+
+        }
+
+        function fixIt() {
+
+            const dict = translations[currentLang];
+
+            safePostMessage({ action: "download_steamcmd" });
+
+            const btn = event.currentTarget;
+
+            btn.innerText = dict.btn_restoring;
+
+            btn.disabled = true;
+
+        }
+
+        const moduleMap = {
+
+            "Security Level": { id: "admin", start: 0, end: 20 },
+
+            "Core Library": { id: "env", start: 20, end: 40 },
+
+            "Cloud Link": { id: "net", start: 40, end: 60 },
+
+            "Storage Health": { id: "disk", start: 60, end: 80 },
+
+            "Core Engine": { id: "steam", start: 80, end: 100 }
+
+        };
+
+        // Message mapping to localize dynamic backend strings
+
+        const messageMapping = {
+
+            "Administrator Access Verified": "detail_admin_ok",
+
+            "Standard User (Limited Perms)": "detail_admin_warn",
+
+            "Steam & Valve Services Reachable": "detail_net_ok",
+
+            "No Internet Connection Found": "detail_net_err",
+
+            "SteamCMD Ready (Cached)": "detail_steam_ok",
+
+            "SteamCMD Core Missing": "detail_steam_err"
+
+        };
+
+        let currentPercent = 0;
+
+        const progressBar = document.getElementById('progress-bar');
+
+        const percentText = document.getElementById('percentage-text');
+
+        function smoothFill(target, callback) {
+
+            if (currentPercent >= target) {
+
+                if (callback) callback();
+
+                return;
+
+            }
+
+            let callbackFired = false;
+
+            const safeCallback = () => {
+
+                if (!callbackFired) {
+
+                    callbackFired = true;
+
+                    if (callback) callback();
+
+                }
+
+            };
+
+            const interval = setInterval(() => {
+
+                if (currentPercent >= target) {
+
+                    clearInterval(interval);
+
+                    safeCallback();
+
+                    return;
+
+                }
+
+                currentPercent++;
+
+                progressBar.style.width = currentPercent + '%';
+
+                percentText.innerText = currentPercent + '%';
+
+            }, 10);
+
+        }
+
+        if (window.chrome && window.chrome.webview) {
+
+            window.chrome.webview.addEventListener('message', event => {
+
+                const data = event.data;
+
+                if (!data) return;
+
+                if (data.type === 'language_updated') {
+                    currentLang = data.lang;
+                    localStorage.setItem('trp_lang', data.lang);
+                    updateLocalization();
+                    return;
+                }
+
+                if (data.type !== 'system_status') return;
+
+                if (data.status === 'ready') {
+
+                    smoothFill(100, () => {
+
+                        document.getElementById('start-btn').classList.add('show');
+
+                        setTimeout(enterSystem, 1000); 
+
+                    });
+
+                    return;
+
+                }
+
+                const mod = moduleMap[data.name];
+
+                if (!mod) return;
+
+                const tile = document.getElementById(`tile-${mod.id}`);
+
+                const detail = document.getElementById(`detail-${mod.id}`);
+
+                const icon = tile.querySelector('.tile-status-icon');
+
+                smoothFill(mod.end, () => {
+
+                    tile.classList.add('active');
+
+                    // Localization logic for dynamic detail
+
+                    const dict = translations[currentLang];
+
+                    const langKey = messageMapping[data.detail];
+
+                    detail.innerText = langKey ? dict[langKey] : data.detail;
+
+                    const statusClass = data.status === 'ok' ? 'done' : (data.status === 'warning' ? 'warn' : 'err');
+
+                    icon.classList.add(statusClass);
+
+                    if (data.status === 'error' && mod.id === 'steam') {
+
+                         document.getElementById('fix-container').classList.remove('hidden');
+
+                    }
+
+                });
+
+            });
+
+        }
+
+        function initBridge() {
+
+            updateLocalization();
+
+            let attempts = 0;
+
+            const timer = setInterval(() => {
+
+                if (window.chrome && window.chrome.webview) {
+
+                    safePostMessage({ action: "verify" });
+
+                    clearInterval(timer);
+
+                }
+
+                if (attempts++ > 50) clearInterval(timer);
+
+            }, 100);
+
+        }
+
+        window.onload = initBridge;
+
+    </script>
+
+</body>
+
+</html>
+

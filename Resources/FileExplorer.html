@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <script defer src="js/alpine.min.js"></script>
+    <meta charset="UTF-8">
+    <script>
+        if (window.self !== window.top) {
+            document.documentElement.classList.add('in-iframe');
+            document.addEventListener('DOMContentLoaded', () => {
+                document.body.classList.add('in-iframe');
+            });
+            
+            // Inside iframe we MUST use window.parent.postMessage wrapper to send messages to C#,
+            // and we MUST override/mock window.chrome.webview to route through window.parent.
+            const target = new EventTarget();
+            const mockWebview = {
+                postMessage: function(msg) {
+                    window.parent.postMessage({ action: "forward_to_csharp", payload: msg }, "*");
+                },
+                addEventListener: function(type, listener) {
+                    target.addEventListener(type, listener);
+                },
+                removeEventListener: function(type, listener) {
+                    target.removeEventListener(type, listener);
+                },
+                dispatchEvent: function(event) {
+                    target.dispatchEvent(event);
+                }
+            };
+            
+            try {
+                Object.defineProperty(window, 'chrome', {
+                    value: { webview: mockWebview },
+                    writable: true,
+                    configurable: true
+                });
+            } catch (e) {
+                window.chrome = { webview: mockWebview };
+            }
+            
+            window.addEventListener('message', event => {
+                if (event.source === window.parent) {
+                    if (event.data) {
+                        try {
+                            const newEvent = new MessageEvent('message', {
+                                data: event.data
+                            });
+                            window.chrome.webview.dispatchEvent(newEvent);
+                        } catch (e) {
+                            console.error('Error dispatching message event:', e);
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRP FILE EXPLORER</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="theme.css">
+</head>
+<body x-data="fileManager()" x-init="init()" class="h-screen flex flex-col p-4">
+    <!-- Header -->
+    <header class="h-16 flex items-center px-4 justify-between border-b border-white/5 bg-black/20 mb-6 flex-shrink-0" @mousedown="onDrag($event)">
+        <div class="flex items-center space-x-6">
+            <button @click="navigateTo('Dashboard.html')" class="w-10 h-10 glass flex items-center justify-center hover:bg-white/10 transition-all text-gray-500 hover:text-white" title="Назад">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <div class="w-12 h-12 bg-red-600/10 border border-red-500/20 flex items-center justify-center text-red-500 shadow-lg">
+                <i class="fas fa-folder-open text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl font-black italic tracking-tighter uppercase neon-text pixel-font text-primary">FILE EXPLORER</h1>
+                <p class="text-[9px] text-gray-500 font-bold tracking-[0.3em] uppercase">Advanced Server Storage</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Breadcrumbs -->
+    <div class="flex items-center space-x-2 mb-6 px-4 py-3 glass border-b border-white/5" @mousedown="onDrag($event)">
+        <button @click="navigateBack()" class="p-2 hover:text-red-500 transition-colors">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+        <div class="flex-1 flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest text-white/40 overflow-hidden">
+            <template x-for="(part, index) in breadcrumbs" :key="index">
+                <div class="flex items-center space-x-2">
+                    <span x-text="part" class="hover:text-white cursor-pointer" @click="goToBreadcrumb(index)"></span>
+                    <span x-show="index < breadcrumbs.length - 1" class="text-white/10">/</span>
+                </div>
+            </template>
+        </div>
+        <div class="flex items-center space-x-4">
+            <button @click="refresh()" class="text-xs font-black uppercase tracking-widest text-white/20 hover:text-red-500 transition-colors">
+                <i class="fas fa-sync-alt mr-2"></i> Обновить
+            </button>
+            <button @click="showNewFolderModal = true" class="text-xs font-black uppercase tracking-widest text-white/20 hover:text-green-500 transition-colors">
+                <i class="fas fa-folder-plus mr-2"></i> Новая папка
+            </button>
+        </div>
+    </div>
+
+    <!-- File Grid/List -->
+    <div class="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-2">
+        <template x-for="file in files" :key="file.FullPath">
+            <div @click="handleItemClick(file)" class="file-item glass p-4 border border-white/5 cursor-pointer transition-all flex items-center space-x-4 group relative">
+                <div class="w-10 h-10 flex items-center justify-center bg-white/2 rounded-sm group-hover:bg-red-500/10 transition-colors">
+                    <i :class="getFileIcon(file)" class="text-lg transition-transform group-hover:scale-110"></i>
+                </div>
+                <div class="flex-1 overflow-hidden">
+                    <div x-text="file.Name" class="text-[11px] font-bold uppercase tracking-wider truncate mb-1"></div>
+                    <div class="text-[9px] font-black text-white/20 uppercase tracking-tighter">
+                        <span x-text="file.IsDirectory ? 'Папка' : formatSize(file.Size)"></span>
+                        <span class="mx-1">•</span>
+                        <span x-text="formatDate(file.LastModified)"></span>
+                    </div>
+                </div>
+                <!-- Quick Actions -->
+                <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
+                    <button @click.stop="confirmDelete(file)" class="p-1 hover:text-red-500"><i class="fas fa-trash-alt text-[10px]"></i></button>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Editor Overlay -->
+    <div x-show="editingFile" x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-xl p-10">
+        <div class="w-full h-full glass flex flex-col border border-white/10 shadow-2xl">
+            <div class="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-white/2">
+                <div class="flex items-center space-x-4">
+                    <i class="fas fa-file-code text-red-500"></i>
+                    <span x-text="editingFile?.Name" class="text-[10px] font-black uppercase tracking-[0.2em]"></span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button @click="saveFile()" class="px-4 py-2 bg-red-500/10 border border-red-500/30 text-[9px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">
+                        Сохранить (CTRL+S)
+                    </button>
+                    <button @click="closeEditor()" class="text-white/40 hover:text-white transition-colors">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <textarea id="file-editor" x-model="editorContent" spellcheck="false" class="flex-1 bg-transparent p-10 text-[11px] font-mono leading-relaxed outline-none resize-none text-white/80 placeholder:text-white/10" placeholder="Напишите текст..."></textarea>
+        </div>
+    </div>
+
+    <!-- Modals (Simple implementations) -->
+    <template x-if="showNewFolderModal">
+        <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div class="glass p-8 w-[400px] border border-white/10">
+                <div class="text-[10px] font-black uppercase tracking-widest text-white/40 mb-4">Новая папка</div>
+                <input x-model="newFolderName" type="text" class="w-full bg-white/5 border border-white/10 p-3 text-xs font-bold outline-none mb-6 focus:border-red-500/50 transition-colors" placeholder="Имя папки">
+                <div class="flex justify-end space-x-4">
+                    <button @click="showNewFolderModal = false" class="text-[9px] font-black uppercase tracking-widest text-white/20 hover:text-white">Отмена</button>
+                    <button @click="createFolder()" class="text-[9px] font-black uppercase tracking-widest text-red-500">Создать</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <script>
+        function fileManager() {
+            return {
+                currentPath: '',
+                navigateTo(url) {
+                    if (url === 'Dashboard.html') {
+                        window.parent.postMessage({ action: 'close_subpage' }, '*');
+                    } else {
+                        location.href = url;
+                    }
+                },
+                files: [],
+                breadcrumbs: [],
+                editingFile: null,
+                editorContent: '',
+                showNewFolderModal: false,
+                newFolderName: '',
+
+                onDrag(e) {
+                    if (e.target.closest('button, input, select, textarea, .cyber-btn, [onclick], [x-on\\:click], [\\@click]')) return;
+                    window.chrome?.webview?.postMessage({ action: "drag" });
+                },
+
+                init() {
+                    document.body.classList.add('fade-in');
+                    this.refresh();
+
+                    if (window.chrome && window.chrome.webview) {
+                        window.chrome.webview.addEventListener('message', (event) => {
+                            const data = event.data;
+                            if (data.type === 'file_list') {
+                                this.files = JSON.parse(data.items);
+                                this.currentPath = data.path;
+                                this.updateBreadcrumbs();
+                            } else if (data.type === 'file_content') {
+                                this.editorContent = data.content;
+                            } else if (data.type === 'save_status') {
+                                if (data.success) alert('Файл успешно сохранен');
+                                else alert('Ошибка при сохранении файла');
+                            }
+                        });
+                    }
+
+                    document.addEventListener('keydown', (e) => {
+                        if (e.ctrlKey && e.key === 's' && this.editingFile) {
+                            e.preventDefault();
+                            this.saveFile();
+                        }
+                    });
+                },
+
+                refresh() {
+                    window.chrome?.webview?.postMessage({ action: 'get_files', path: this.currentPath });
+                },
+
+                updateBreadcrumbs() {
+                    this.breadcrumbs = this.currentPath.split(/[\\/]/).filter(p => p);
+                },
+
+                handleItemClick(file) {
+                    if (file.IsDirectory) {
+                        this.currentPath = file.FullPath;
+                        this.refresh();
+                    } else {
+                        const editableExts = ['.txt', '.json', '.cfg', '.xml', '.cs', '.lua', '.html', '.css', '.js'];
+                        const ext = file.Extension.toLowerCase();
+                        if (editableExts.includes(ext)) {
+                            this.editingFile = file;
+                            this.editorContent = 'Загрузка...';
+                            window.chrome?.webview?.postMessage({ action: 'read_file', path: file.FullPath });
+                        } else {
+                            alert('Этот тип файла не поддерживается для редактирования.');
+                        }
+                    }
+                },
+
+                saveFile() {
+                    if (!this.editingFile) return;
+                    window.chrome?.webview?.postMessage({ 
+                        action: 'save_file', 
+                        path: this.editingFile.FullPath, 
+                        content: this.editorContent 
+                    });
+                },
+
+                closeEditor() {
+                    this.editingFile = null;
+                    this.editorContent = '';
+                },
+
+                navigateBack() {
+                    const parts = this.currentPath.split(/[\\/]/).filter(p => p);
+                    if (parts.length > 1) {
+                        parts.pop();
+                        this.currentPath = parts.join('\\');
+                        this.refresh();
+                    }
+                },
+
+                goToBreadcrumb(index) {
+                    const parts = this.currentPath.split(/[\\/]/).filter(p => p);
+                    this.currentPath = parts.slice(0, index + 1).join('\\');
+                    this.refresh();
+                },
+
+                confirmDelete(file) {
+                    if (confirm(`Вы уверены, что хотите удалить ${file.Name}?`)) {
+                        window.chrome?.webview?.postMessage({ action: 'delete_file', path: file.FullPath });
+                        setTimeout(() => this.refresh(), 500);
+                    }
+                },
+
+                createFolder() {
+                    if (!this.newFolderName) return;
+                    window.chrome?.webview?.postMessage({ 
+                        action: 'create_folder', 
+                        parent: this.currentPath, 
+                        name: this.newFolderName 
+                    });
+                    this.showNewFolderModal = false;
+                    this.newFolderName = '';
+                    setTimeout(() => this.refresh(), 500);
+                },
+
+                getFileIcon(file) {
+                    if (file.IsDirectory) return 'fas fa-folder text-yellow-500';
+                    const icons = {
+                        '.json': 'fas fa-file-code text-blue-400',
+                        '.cs': 'fas fa-file-code text-purple-400',
+                        '.lua': 'fas fa-file-code text-blue-500',
+                        '.cfg': 'fas fa-file-invoice text-white/40',
+                        '.log': 'fas fa-file-alt text-white/20',
+                        '.txt': 'fas fa-file-alt text-white/40',
+                        '.db': 'fas fa-database text-red-400',
+                        '.sav': 'fas fa-hdd text-green-400'
+                    };
+                    return icons[file.Extension.toLowerCase()] || 'fas fa-file text-white/10';
+                },
+
+                formatSize(bytes) {
+                    if (!bytes) return '0 B';
+                    const k = 1024;
+                    const sizes = ['B', 'KB', 'MB', 'GB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+                },
+
+                formatDate(dateStr) {
+                    const d = new Date(dateStr);
+                    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                }
+            }
+        }
+    </script>
+</body>
+</html>

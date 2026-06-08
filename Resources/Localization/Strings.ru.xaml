@@ -1,0 +1,111 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    
+    <!-- Header -->
+    <sys:String x:Key="Str_Install">УСТАНОВКА</sys:String>
+    <sys:String x:Key="Str_Marketplace">МАРКЕТПЛЕЙС</sys:String>
+    <sys:String x:Key="Str_About">О ПРОГРАММЕ</sys:String>
+    <sys:String x:Key="Str_AddServer">Добавить сервер</sys:String>
+
+    <!-- Console -->
+    <sys:String x:Key="Str_Console">КОНСОЛЬ СЕРВЕРА</sys:String>
+    <sys:String x:Key="Str_AutoScroll">АВТО</sys:String>
+    <sys:String x:Key="Str_Clear">ОЧИСТИТЬ</sys:String>
+    <sys:String x:Key="Str_Execute">ВЫПОЛНИТЬ</sys:String>
+    <sys:String x:Key="Str_CommandPrompt">Введите команду здесь...</sys:String>
+    <sys:String x:Key="Str_Search">Поиск в логах...</sys:String>
+
+    <!-- Console Tabs -->
+    <sys:String x:Key="Str_TabAll">ВСЁ</sys:String>
+    <sys:String x:Key="Str_TabChat">ЧАТ</sys:String>
+    <sys:String x:Key="Str_TabPlayers">ИГРОКИ</sys:String>
+    <sys:String x:Key="Str_TabErrors">ОШИБКИ</sys:String>
+
+    <!-- Dashboard -->
+    <sys:String x:Key="Str_Dashboard">ДАШБОРД</sys:String>
+    <sys:String x:Key="Str_QuickActions">Быстрые действия</sys:String>
+    <sys:String x:Key="Str_SaveWorld">Сохранить мир</sys:String>
+    <sys:String x:Key="Str_RestartServer">Перезапустить сервер</sys:String>
+    <sys:String x:Key="Str_WipeServer">Полный вайп сервера</sys:String>
+
+    <!-- SideBar -->
+    <sys:String x:Key="Str_Management">УПРАВЛЕНИЕ СЕРВЕРОМ</sys:String>
+    <sys:String x:Key="Str_Ram">ОЗУ</sys:String>
+    <sys:String x:Key="Str_Fps">FPS</sys:String>
+    <sys:String x:Key="Str_Entities">ОБЪЕКТЫ</sys:String>
+    <sys:String x:Key="Str_Players">ИГРОКИ</sys:String>
+    <sys:String x:Key="Str_Start">ЗАПУСТИТЬ</sys:String>
+    <sys:String x:Key="Str_Stop">ОСТАНОВИТЬ</sys:String>
+    <sys:String x:Key="Str_Settings">НАСТРОЙКИ</sys:String>
+    <sys:String x:Key="Str_Plugins">ПЛАГИНЫ</sys:String>
+    <sys:String x:Key="Str_PlayersList">ИГРОКИ</sys:String>
+    <sys:String x:Key="Str_OpenFolder">ОТКРЫТЬ ПАПКУ</sys:String>
+    <sys:String x:Key="Str_Cpu">ЦП</sys:String>
+    <sys:String x:Key="Str_Uptime">АПТАЙМ</sys:String>
+    <sys:String x:Key="Str_NextWipe">ДО ВАЙПА</sys:String>
+
+    <!-- Install Window -->
+    <sys:String x:Key="Str_InstallConfig">КОНФИГУРАЦИЯ УСТАНОВКИ</sys:String>
+    <sys:String x:Key="Str_ServerSetup">НАСТРОЙКА СЕРВЕРА</sys:String>
+    <sys:String x:Key="Str_FillData">Заполните данные для начала развертывания:</sys:String>
+    <sys:String x:Key="Str_BasicData">ОСНОВНЫЕ ДАННЫЕ</sys:String>
+    <sys:String x:Key="Str_ServerName">НАЗВАНИЕ СЕРВЕРА</sys:String>
+    <sys:String x:Key="Str_IPAddress">IP АДРЕС (ПО УМОЛЧАНИЮ 0.0.0.0)</sys:String>
+    <sys:String x:Key="Str_RconPort">RCON ПОРТ</sys:String>
+    <sys:String x:Key="Str_RconPass">RCON ПАРОЛЬ</sys:String>
+    <sys:String x:Key="Str_PlatformCore">ПЛАТФОРМА И ЯДРО</sys:String>
+    <sys:String x:Key="Str_UpdateBranch">ВЕТКА ОБНОВЛЕНИЙ</sys:String>
+    <sys:String x:Key="Str_PluginCore">ЯДРО ПЛАГИНОВ</sys:String>
+    <sys:String x:Key="Str_InstallPath">ПУТЬ УСТАНОВКИ</sys:String>
+    <sys:String x:Key="Str_ServerPort">ПОРТ СЕРВЕРА</sys:String>
+    <sys:String x:Key="Str_Slots">МАКС. ИГРОКОВ</sys:String>
+    <sys:String x:Key="Str_RconPassword">RCON ПАРОЛЬ</sys:String>
+    <sys:String x:Key="Str_Kick">КИКНУТЬ</sys:String>
+    <sys:String x:Key="Str_PlayerBan">ЗАБАНИТЬ</sys:String>
+    <sys:String x:Key="Str_Mute">МУТ</sys:String>
+    <sys:String x:Key="Str_PluginReload">ПЕРЕЗАГРУЗИТЬ</sys:String>
+    <sys:String x:Key="Str_PluginSettings">НАСТРОЙКИ</sys:String>
+    <sys:String x:Key="Str_Cancel">ОТМЕНА</sys:String>
+    <sys:String x:Key="Str_InstallBtn">УСТАНОВИТЬ СЕРВЕР</sys:String>
+    <sys:String x:Key="Str_ProgressTitle">ВЫПОЛНЯЕТСЯ УСТАНОВКА</sys:String>
+    <sys:String x:Key="Str_ProgressNote">ЭТО МОЖЕТ ЗАНЯТЬ НЕСКОЛЬКО МИНУТ</sys:String>
+    <sys:String x:Key="Str_LangToggle">🇷🇺 RU</sys:String>
+    
+    <!-- Settings Tabs -->
+    <sys:String x:Key="Str_AppSettings">НАСТРОЙКА ПРИЛОЖЕНИЯ</sys:String>
+    <sys:String x:Key="Str_Personalization">ПЕРСОНАЛИЗАЦИЯ</sys:String>
+    <sys:String x:Key="Str_Help">ПОМОЩЬ В ПРОГРАММЕ</sys:String>
+    
+    <!-- Settings Fields -->
+    <sys:String x:Key="Str_AppLanguage">ЯЗЫК ИНТЕРФЕЙСА</sys:String>
+    <sys:String x:Key="Str_AutoStart">ЗАПУСКАТЬ ВМЕСТЕ С WINDOWS</sys:String>
+    <sys:String x:Key="Str_MinimizeToTray">СВОРАЧИВАТЬ В ТРЕЙ ПРИ ЗАКРЫТИИ</sys:String>
+    <sys:String x:Key="Str_SteamPath">ПУТЬ К STEAMCMD (КЭШ)</sys:String>
+    <sys:String x:Key="Str_ThemeSettings">НАСТРОЙКИ ВИЗУАЛА</sys:String>
+    <sys:String x:Key="Str_AccentColor">АКЦЕНТНЫЙ ЦВЕТ (BLOOD &amp; FLAME)</sys:String>
+    <sys:String x:Key="Str_BlurIntensity">ИНТЕНСИВНОСТЬ РАЗМЫТИЯ (GLASS)</sys:String>
+    <sys:String x:Key="Str_AnimationSpeed">СКОРОСТЬ ПЛАВНЫХ ПЕРЕХОДОВ</sys:String>
+    <sys:String x:Key="Str_VersionInfo">ВЕРСИЯ ОРКЕСТРАТОРА</sys:String>
+    <sys:String x:Key="Str_TeamInfo">РАЗРАБОТКА И ПОДДЕРЖКА</sys:String>
+    <sys:String x:Key="Str_ApplyChanges">ПРИМЕНИТЬ ИЗМЕНЕНИЯ</sys:String>
+    
+    <!-- Help & About Detailed -->
+    <sys:String x:Key="Str_HelpGuide">РУКОВОДСТВО ПО ЭКСПЛУАТАЦИИ</sys:String>
+    <sys:String x:Key="Str_HelpDesc">Используйте эту панель для полного контроля над вашим сервером Rust. Вы можете устанавливать плагины, управлять игроками и отслеживать производительность в реальном времени.</sys:String>
+    <sys:String x:Key="Str_FaqTitle">ЧАСТО ЗАДАВАЕМЫЕ ВОПРОСЫ</sys:String>
+    <sys:String x:Key="Str_Faq1">Как установить плагин? - Перейдите во вкладку 'Плагины' или 'Маркетплейс'.</sys:String>
+    <sys:String x:Key="Str_Faq2">Где лог-файлы? - Нажмите 'Открыть папку' в боковой панели.</sys:String>
+    <sys:String x:Key="Str_Community">СООБЩЕСТВО И ПОДДЕРЖКА</sys:String>
+    <sys:String x:Key="Str_VisitDiscord">ПРИСОЕДИНИТЬСЯ К DISCORD</sys:String>
+    <sys:String x:Key="Str_VisitWebsite">ПОСЕТИТЬ НАШ САЙТ</sys:String>
+
+    <!-- Tooltips -->
+    <sys:String x:Key="Tip_Install">Открыть мастер установки новых серверов</sys:String>
+    <sys:String x:Key="Tip_Market">Перейти в магазин плагинов и карт</sys:String>
+    <sys:String x:Key="Tip_About">Информация о версии и разработчиках</sys:String>
+    <sys:String x:Key="Tip_Clear">Полностью очистить текущий лог консоли</sys:String>
+    <sys:String x:Key="Tip_Execute">Отправить введенную команду на сервер</sys:String>
+    <sys:String x:Key="Tip_Language">Change Language / Сменить язык</sys:String>
+
+</ResourceDictionary>

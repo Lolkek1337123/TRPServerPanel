@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <script>
+        if (window.self !== window.top) {
+            document.documentElement.classList.add('in-iframe');
+            document.addEventListener('DOMContentLoaded', () => {
+                document.body.classList.add('in-iframe');
+            });
+            
+            // Inside iframe we MUST use window.parent.postMessage wrapper to send messages to C#,
+            // and we MUST override/mock window.chrome.webview to route through window.parent.
+            const target = new EventTarget();
+            const mockWebview = {
+                postMessage: function(msg) {
+                    window.parent.postMessage({ action: "forward_to_csharp", payload: msg }, "*");
+                },
+                addEventListener: function(type, listener) {
+                    target.addEventListener(type, listener);
+                },
+                removeEventListener: function(type, listener) {
+                    target.removeEventListener(type, listener);
+                },
+                dispatchEvent: function(event) {
+                    target.dispatchEvent(event);
+                }
+            };
+            
+            try {
+                Object.defineProperty(window, 'chrome', {
+                    value: { webview: mockWebview },
+                    writable: true,
+                    configurable: true
+                });
+            } catch (e) {
+                window.chrome = { webview: mockWebview };
+            }
+            
+            window.addEventListener('message', event => {
+                if (event.source === window.parent) {
+                    if (event.data) {
+                        try {
+                            const newEvent = new MessageEvent('message', {
+                                data: event.data
+                            });
+                            window.chrome.webview.dispatchEvent(newEvent);
+                        } catch (e) {
+                            console.error('Error dispatching message event:', e);
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+
+    
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TRP SERVER PANEL | INSTALLER</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="theme.css">
+
+    <script defer src="js/alpine.min.js"></script>
+
+</head>
+
+<body class="page-transition">
+
+    <div class="flex flex-col h-screen p-4 space-y-4">
+
+        <!-- Header -->
+        <header class="h-16 flex justify-between items-center bg-black/40 px-6 glass flex-shrink-0" onmousedown="onDrag(event)">
+            <div class="flex items-center space-x-6">
+                <button onclick="window.parent.postMessage({action:'close_subpage'},'*')" class="w-10 h-10 glass flex items-center justify-center hover:bg-white/10 transition-all text-gray-500 hover:text-white" title="Назад">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <div class="w-12 h-12 bg-red-600/10 border border-red-500/20 flex items-center justify-center text-red-500 shadow-lg">
+                    <i class="fas fa-hammer text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black italic tracking-tighter uppercase pixel-font text-primary" data-i18n="header_title">INSTALLATION MASTER</h1>
+                    <p class="text-[9px] text-gray-500 font-bold tracking-[0.3em] uppercase" data-i18n="header_sub">SteamCMD / Oxide Deploy Engine</p>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+
+        <div class="flex-1 flex space-x-6 overflow-hidden no-drag">
+
+            <!-- Config Column -->
+
+            <div class="w-[450px] glass  p-8 space-y-8 overflow-y-auto custom-scrollbar">
+
+                <div class="space-y-4">
+
+                    <label class="text-[10px] font-black var(--primary-color) uppercase tracking-widest" data-i18n="step_1">1. SELECT FRAMEWORK</label>
+
+                    <div class="grid grid-cols-3 gap-3">
+
+                        <div class="framework-card active" onclick="selectMod(this, 'oxide')" title="Выбрать Oxide" data-i18n-title="tooltip_oxide">
+
+                            <i class="fas fa-flask text-xl mb-3" style="color: var(--primary-color)"></i>
+
+                            <div class="text-[10px] font-black uppercase">OXIDE</div>
+
+                            <div class="text-[8px] text-gray-600 uppercase" data-i18n="oxide_sub">Legacy Support</div>
+
+                        </div>
+
+                        <div class="framework-card" onclick="selectMod(this, 'carbon')" title="Выбрать Carbon" data-i18n-title="tooltip_carbon">
+
+                            <i class="fas fa-bolt text-xl mb-3" style="color: var(--primary-color)"></i>
+
+                            <div class="text-[10px] font-black uppercase">CARBON</div>
+
+                            <div class="text-[8px] text-gray-600 uppercase" data-i18n="carbon_sub">High Performance</div>
+
+                        </div>
+
+                        <div class="framework-card" onclick="selectMod(this, 'vanilla')" title="Ванильный сервер" data-i18n-title="tooltip_vanilla">
+
+                            <i class="fas fa-cube text-xl mb-3" style="color: var(--primary-color)"></i>
+
+                            <div class="text-[10px] font-black uppercase">VANILLA</div>
+
+                            <div class="text-[8px] text-gray-600 uppercase" data-i18n="vanilla_sub">Pure Rust</div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="space-y-4">
+
+                    <label class="text-[10px] font-black var(--primary-color) uppercase tracking-widest" data-i18n="step_2">2. SERVER PROPERTY</label>
+
+                    <input type="text" id="server-name" data-i18n-placeholder="placeholder_name" title="Название сервера" data-i18n-title="tooltip_server_name" placeholder="SERVER NAME (e.g. TRP_Test)" class="cyber-input">
+
+                </div>
+
+                 <div class="space-y-4">
+
+                    <label class="text-[10px] font-black var(--primary-color) uppercase tracking-widest" data-i18n="step_3">3. DEPLOY PATH</label>
+
+                    <div class="flex space-x-2">
+
+                         <input type="text" id="install-path" title="Путь установки" value="C:\TRP_Server" data-i18n-placeholder="placeholder_path" class="cyber-input flex-1">
+
+                         <button onclick="selectInstallFolder()" title="Выбрать папку" class="cyber-btn w-12 h-12 flex items-center justify-center">
+
+                            <i class="fas fa-folder-open text-gray-400"></i>
+
+                         </button>
+
+                    </div>
+
+                </div>
+
+                <button id="start-install-btn" onclick="startInstallation()" class="cyber-btn w-full h-14 flex items-center justify-center text-[11px] tracking-widest" title="Начать установку" data-i18n-title="tooltip_initiate">
+
+                    <i class="fas fa-download mr-4"></i> <span data-i18n="btn_initiate">Initiate Installation</span>
+
+                </button>
+
+            </div>
+
+            <!-- Console Column (CMD STYLE V4) -->
+
+            <div class="flex-1 glass  bg-[#0a0a0a] border border-white/5 flex flex-col overflow-hidden shadow-2xl">
+
+                <div class="px-6 py-3 border-b border-white/10 flex justify-between items-center bg-[#111]">
+
+                    <div class="flex items-center space-x-2">
+
+                        <div class="flex space-x-1.5 mr-4">
+
+                            <div class="w-2.5 h-2.5  bg-red-500/20 border border-red-500/40"></div>
+
+                            <div class="w-2.5 h-2.5  bg-yellow-500/20 border border-yellow-500/40"></div>
+
+                            <div class="w-2.5 h-2.5  bg-green-500/20 border border-green-500/40"></div>
+
+                        </div>
+
+                        <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest font-mono">C:\WINDOWS\system32\cmd.exe - rust_install.bat</span>
+
+                    </div>
+
+                    <span id="label-status" class="text-[9px] font-black text-white/40 uppercase font-mono">Terminal Active</span>
+
+                </div>
+
+                <div id="logs" class="flex-1 p-6 text-[11px] font-mono text-[#cccccc] overflow-y-auto custom-scrollbar flex flex-col bg-black selection:var(--primary-color) selection:text-white">
+
+                    <div class="opacity-40 mb-4" data-i18n="awaiting_config">Microsoft Windows [Version 10.0.19045.5441]<br>(c) Корпорация Майкрософт (Microsoft Corporation). Все права защищены.<br><br>C:\TRP_PANEL> awaiting initialization...</div>
+
+                </div>
+
+                <div class="p-4 bg-[#111] border-t border-white/5 flex justify-between items-center">
+
+                    <div class="flex items-center space-x-4">
+
+                        <div id="cmd-cursor" class="w-2 h-4 var(--primary-color) animate-pulse"></div>
+
+                        <span id="label-progress-text" class="text-[9px] font-black text-gray-600 uppercase tracking-widest font-mono">System Idle</span>
+
+                    </div>
+
+                    <span id="label-progress-pct" class="text-[10px] font-black var(--primary-color) font-mono">0.0%</span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        function safePostMessage(obj) {
+            if (window.chrome && window.chrome.webview) {
+                try { window.chrome.webview.postMessage(obj); } catch (e) { }
+            }
+        }
+
+        function onDrag(e) {
+            if (e.target.closest('button, input, select, textarea, .no-drag')) return;
+            safePostMessage({ action: "drag" });
+        }
+
+        const translations = {
+
+            ru: {
+
+                header_title: "МАСТЕР УСТАНОВКИ",
+
+                header_sub: "Движок развертывания SteamCMD / Oxide",
+
+                step_1: "1. ВЫБОР ФРЕЙМВОРКА",
+
+                oxide_sub: "Классическая поддержка",
+
+                carbon_sub: "Высокая производительность",
+
+                vanilla_sub: "Чистый Rust",
+
+                step_2: "2. СВОЙСТВА СЕРВЕРА",
+
+                placeholder_name: "НАЗВАНИЕ (напр. TRP_Test)",
+
+                step_3: "3. ПУТЬ РАЗВЕРТЫВАНИЯ",
+
+                placeholder_path: "Путь установки",
+
+                btn_initiate: "Запустить установку",
+
+                label_logs: "Логи развертывания",
+
+                label_status: "Ожидание действий",
+
+                awaiting_config: "Ожидание конфигурации пользователя...",
+
+                tooltip_oxide: "Выбрать Oxide",
+
+                tooltip_carbon: "Выбрать Carbon",
+
+                tooltip_vanilla: "Ванильный сервер без модов",
+
+                tooltip_server_name: "Название сервера",
+
+                tooltip_install_path: "Путь установки",
+
+                tooltip_select_folder: "Выбрать папку",
+
+                tooltip_initiate: "Запустить установку",
+
+                back_to_dashboard: "Назад на главную",
+
+                install_started: "Установка запущена...",
+
+                install_complete: "УСТАНОВКА ЗАВЕРШЕНА!"
+
+            },
+
+            en: {
+
+                header_title: "INSTALLATION MASTER",
+
+                header_sub: "SteamCMD / Oxide Deploy Engine",
+
+                step_1: "1. SELECT FRAMEWORK",
+
+                oxide_sub: "Legacy Support",
+
+                carbon_sub: "High Performance",
+
+                vanilla_sub: "Pure Rust",
+
+                step_2: "2. SERVER PROPERTY",
+
+                placeholder_name: "SERVER NAME (e.g. TRP_Test)",
+
+                step_3: "3. DEPLOY PATH",
+
+                placeholder_path: "Installation Path",
+
+                btn_initiate: "Initiate Installation",
+
+                label_logs: "Deployment Logs",
+
+                label_status: "Awaiting Action",
+
+                awaiting_config: "Awaiting user configuration...",
+
+                tooltip_oxide: "Select Oxide",
+
+                tooltip_carbon: "Select Carbon",
+
+                tooltip_vanilla: "Vanilla server (no mods)",
+
+                tooltip_server_name: "Server Name",
+
+                tooltip_install_path: "Installation Path",
+
+                tooltip_select_folder: "Select Folder",
+
+                tooltip_initiate: "Start Installation",
+
+                back_to_dashboard: "Back to Dashboard",
+
+                install_started: "Installation started...",
+
+                install_complete: "INSTALLATION COMPLETE!"
+
+            }
+
+        };
+
+        let currentLang = localStorage.getItem('trp_lang') || 'ru';
+
+        let currentFramework = 'oxide';
+
+
+        function updateLocalization() {
+
+            const dict = translations[currentLang];
+
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+
+                const key = el.getAttribute('data-i18n');
+
+                if (dict[key]) el.innerHTML = dict[key];
+
+            });
+
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+
+                const key = el.getAttribute('data-i18n-placeholder');
+
+                if (dict[key]) el.placeholder = dict[key];
+
+            });
+
+            document.querySelectorAll('[data-i18n-title]').forEach(el => {
+
+                const key = el.getAttribute('data-i18n-title');
+
+                if (dict[key]) el.title = dict[key];
+
+            });
+
+        }
+
+        function selectMod(el, type) {
+
+            currentFramework = type;
+
+            document.querySelectorAll('.framework-card').forEach(c => c.classList.remove('active'));
+
+            el.classList.add('active');
+
+        }
+
+        let _isSelecting = false;
+
+        function selectInstallFolder() {
+
+            if (_isSelecting) return;
+
+            _isSelecting = true;
+
+            safePostMessage({ action: 'select_folder' });
+
+            // Reset flag after a delay to allow next selection
+
+            setTimeout(() => { _isSelecting = false; }, 2000);
+
+        }
+
+        function startInstallation() {
+
+            const name = document.getElementById('server-name').value;
+
+            const path = document.getElementById('install-path').value;
+
+            if(!name || !path) {
+
+                alert(currentLang === 'ru' ? "Пожалуйста, заполните все поля!" : "Please fill all fields!");
+
+                return;
+
+            }
+
+            // UI State Change (Prevention of double trigger)
+
+            const btn = document.getElementById('start-install-btn');
+
+            if(btn) {
+
+                btn.disabled = true;
+
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-3"></i> <span>${translations[currentLang].install_started}</span>`;
+
+            }
+
+            const statusLabel = document.getElementById('label-status');
+
+            if(statusLabel) {
+
+                statusLabel.innerText = translations[currentLang].install_started;
+
+                statusLabel.classList.remove('text-red-500');
+
+                statusLabel.classList.add('text-blue-500', 'animate-pulse');
+
+            }
+
+            document.getElementById('logs').innerHTML = '';
+
+            appendInstallLog("[SYSTEM] Handshake initiated. Validating environment...");
+
+            safePostMessage({
+
+                action: "install",
+
+                server_name: name,
+
+                path: path,
+
+                mod_type: currentFramework
+
+            });
+
+        }
+
+        function appendInstallLog(msg) {
+
+            const box = document.getElementById('logs');
+
+            if(!box) return;
+
+            const line = document.createElement('div');
+
+            line.className = 'terminal-line transition-all duration-200 opacity-0 translate-y-1 flex items-start py-0.5';
+
+            let levelClass = 'text-[#cccccc]';
+
+            let tagHtml = '';
+
+            let parsedMessage = msg || "";
+
+            const logUpper = parsedMessage.toUpperCase();
+
+            // 1. Tag Extraction
+
+            const tagRegex = /^\[(.*?)\]\s*/;
+
+            const match = parsedMessage.match(tagRegex);
+
+            let extractedTag = null;
+
+            if (match) {
+
+                extractedTag = match[1].toUpperCase();
+
+                parsedMessage = parsedMessage.replace(tagRegex, '');
+
+            }
+
+            // 2. Class overrides
+
+            if (logUpper.includes('ERROR') || logUpper.includes('CRITICAL') || logUpper.includes('FAILED')) levelClass = 'text-[#ff5555] font-bold';
+
+            else if (extractedTag === 'SUCCESS' || logUpper.includes('SUCCESS')) levelClass = 'text-[#55ff55] font-bold';
+
+            else if (extractedTag === 'SYSTEM') levelClass = 'text-[#55ffff]';
+
+            else if (extractedTag === 'STEAMCMD') levelClass = 'text-[#ffff55]';
+
+            // 3. Build Tag HTML
+
+            if (extractedTag) {
+
+                let tagClass = 'tag-sys';
+
+                if (levelClass.includes('ff5555')) tagClass = 'tag-err';
+
+                else if (levelClass.includes('ffff55')) tagClass = 'tag-warn';
+
+                else if (levelClass.includes('55ff55')) tagClass = 'tag-suc';
+
+                else if (levelClass.includes('55ffff')) tagClass = 'tag-chat';
+
+                tagHtml = `<span class="log-tag ${tagClass}" style="display:inline-block; font-family:'Press Start 2P', monospace; font-size:7px; padding:3px 5px; margin-right:10px; border:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.5); transform:translateY(-1px);">${extractedTag}</span>`;
+
+            }
+
+            // Escape HTML
+
+            parsedMessage = parsedMessage.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+            // Paths & Numbers Highlights
+
+            parsedMessage = parsedMessage.replace(/([A-Z]:\\[^\s"']+)/gi, '<span style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.05); padding:0 4px; color:#d4d4d8; font-family:Consolas,monospace; font-size:10px;">$1</span>');
+
+            parsedMessage = parsedMessage.replace(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?)\b/g, '<span style="color:#34d399; font-weight:bold; border-bottom:1px dashed rgba(52,211,153,0.5);">$1</span>');
+
+            parsedMessage = parsedMessage.replace(/'([^']+)'/g, '<span class="text-white font-bold">\'$1\'</span>');
+
+            const date = new Date();
+
+            const timeStr = date.toLocaleTimeString('ru-RU', { hour12: false }) + '.' + date.getMilliseconds().toString().padStart(3, '0');
+
+            line.innerHTML = `
+
+                <div style="font-size:9px; color:rgba(255,255,255,0.25); margin-right:12px; white-space:nowrap; font-weight:600; display:flex; align-items:center;">
+
+                    <span style="color:rgba(255,0,0,0.5); margin-right:6px; font-family:'Press Start 2P', monospace; font-size:5px;">&gt;</span>
+
+                    ${timeStr}
+
+                </div>
+
+                <div style="word-break:break-all; flex-grow:1; line-height:1.5;" class="${levelClass}">${tagHtml}${parsedMessage}</div>
+
+            `;
+
+            box.appendChild(line);
+
+            requestAnimationFrame(() => {
+
+                line.classList.remove('opacity-0', 'translate-y-1');
+
+            });
+
+            if (box.scrollHeight - box.scrollTop - box.clientHeight < 100) {
+
+                box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
+
+            }
+
+        }
+
+
+        /** --- THEME ENGINE (v16.3) --- **/
+
+        const themes = {
+
+            blood: { primary: '#ff0000', glow: 'rgba(255, 0, 0, 0.5)', primaryRgb: '255, 0, 0' },
+
+            cyber: { primary: '#10b981', glow: 'rgba(16, 185, 129, 0.5)', primaryRgb: '16, 185, 129' },
+
+            void: { primary: '#3b82f6', glow: 'rgba(59, 130, 246, 0.5)', primaryRgb: '59, 130, 246' },
+
+            gold: { primary: '#f59e0b', glow: 'rgba(245, 158, 11, 0.5)', primaryRgb: '245, 158, 11' },
+
+            purple: { primary: '#a855f7', glow: 'rgba(168, 85, 247, 0.5)', primaryRgb: '168, 85, 247' },
+
+            arctic: { primary: '#67e8f9', glow: 'rgba(103, 232, 249, 0.5)', primaryRgb: '103, 232, 249' },
+
+            toxic: { primary: '#a3e635', glow: 'rgba(163, 230, 53, 0.5)', primaryRgb: '163, 230, 53' },
+
+            sunset: { primary: '#f43f5e', glow: 'rgba(244, 63, 94, 0.5)', primaryRgb: '244, 63, 94' },
+
+            indigo: { primary: '#6366f1', glow: 'rgba(99, 102, 241, 0.5)', primaryRgb: '99, 102, 241' },
+
+            silver: { primary: '#94a3b8', glow: 'rgba(148, 163, 184, 0.5)', primaryRgb: '148, 163, 184' }
+
+        };
+
+        function applyGlobalTheme() {
+
+            const themeId = localStorage.getItem('trp_theme') || 'blood';
+
+            const theme = themes[themeId];
+
+            if (!theme) return;
+
+            const root = document.documentElement;
+
+            root.style.setProperty('--primary-color', theme.primary);
+
+            root.style.setProperty('--primary-glow', theme.glow);
+
+            root.style.setProperty('--primary-rgb', theme.primaryRgb);
+
+        }
+
+        window.addEventListener('load', () => {
+
+             applyGlobalTheme();
+
+             updateLocalization();
+
+             if (window.chrome && window.chrome.webview) {
+
+                window.chrome.webview.addEventListener('message', event => {
+
+                    let data = event.data;
+
+                    if(!data) return;
+
+                    // Handle string-encoded JSON
+
+                    if(typeof data === 'string') { try { data = JSON.parse(data); } catch(e) { return; } }
+
+                    if(data.type === 'language_updated') {
+
+                        currentLang = data.lang;
+
+                        localStorage.setItem('trp_lang', data.lang);
+
+                        updateLocalization();
+
+                        return;
+
+                    }
+
+                    if(data.type === 'folder_selected') {
+
+                        document.getElementById('install-path').value = data.path;
+
+                    }
+
+                    // Handle both 'install_progress' (StatsTimer) and 'install_update' (PropertyChanged)
+
+                    if(data.type === 'install_progress' || data.type === 'install_update') {
+
+                        const progressText = document.getElementById('label-progress-text');
+
+                        const progressPct = document.getElementById('label-progress-pct');
+
+                        if(progressText && data.status) progressText.innerText = data.status.toUpperCase();
+
+                        if(progressPct && data.progress !== undefined) progressPct.innerText = Math.round(data.progress) + '%';
+
+                    }
+
+                    if(data.type === 'install_log' || data.type === 'batch_log') {
+
+                        // batch_log arrives from the main log pipeline with install messages
+
+                        if(data.type === 'batch_log' && data.logs) {
+
+                            data.logs.forEach(l => appendInstallLog(l.message));
+
+                        } else if(data.message) {
+
+                            appendInstallLog(data.message);
+
+                        }
+
+                        const msg = data.message || (data.logs && data.logs.length > 0 ? data.logs[data.logs.length-1].message : '');
+
+                        // [V6.1] Success Signal Handling
+
+                        if(msg && (msg.includes("DEPLOYMENT COMPLETE") || msg.includes("FULL DEPLOYMENT COMPLETED"))) {
+
+                            const statusLabel = document.getElementById('label-status');
+
+                            const btn = document.getElementById('start-install-btn');
+
+                            if(statusLabel) {
+
+                                statusLabel.innerText = translations[currentLang].install_complete;
+
+                                statusLabel.classList.remove('text-blue-500', 'animate-pulse');
+
+                                statusLabel.classList.add('text-green-500');
+
+                            }
+
+                            if(btn) {
+
+                                btn.disabled = false;
+
+                                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+                                btn.innerHTML = `<i class="fas fa-check-circle mr-4 text-green-400"></i> <span>${translations[currentLang].btn_initiate}</span>`;
+
+                            }
+
+                            console.log("Installation finished successfully.");
+
+                        }
+
+                    }
+
+                });
+
+            }
+
+        });
+
+    </script>
+
+</body>
+
+</html>
+

@@ -1,0 +1,40 @@
+<Window x:Class="TRPServerPanel.Views.CrashReportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TRP PANEL | CRITICAL ERROR" Height="450" Width="600"
+        WindowStartupLocation="CenterScreen" 
+        Background="#0A0A0A"
+        AllowsTransparency="True" WindowStyle="None"
+        BorderThickness="1" BorderBrush="#33FF0000">
+    
+    <Grid Margin="30">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,20">
+            <TextBlock Text="SYSTEM TERMINATION" Foreground="#FF0000" FontSize="24" FontWeight="Black" FontStyle="Italic"/>
+            <TextBlock Text="CRITICAL EXCEPTION DETECTED" Foreground="#66FFFFFF" FontSize="10" FontWeight="Bold"/>
+        </StackPanel>
+
+        <!-- Brief Message -->
+        <TextBlock Grid.Row="1" x:Name="ShortMessage" Foreground="White" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,15"/>
+
+        <!-- Details -->
+        <Border Grid.Row="2" Background="#1A1A1A" CornerRadius="8" Padding="15" BorderThickness="1" BorderBrush="#11FFFFFF">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBlock x:Name="FullTrace" Foreground="#99FFFFFF" FontSize="11" FontFamily="Consolas" TextWrapping="Wrap"/>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Actions -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button Content="COPY ERROR DATA" Click="Copy_Click" Width="180" Height="40" Background="Transparent" Foreground="#FF0000" FontWeight="Black" BorderBrush="#33FF0000" BorderThickness="1" Margin="0,0,10,0"/>
+            <Button Content="CLOSE" Click="Close_Click" Width="100" Height="40" Background="#FF0000" Foreground="White" FontWeight="Black" BorderThickness="0"/>
+        </StackPanel>
+    </Grid>
+</Window>

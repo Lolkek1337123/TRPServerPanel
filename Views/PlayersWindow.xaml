@@ -1,0 +1,141 @@
+<Window x:Class="TRPServerPanel.Views.PlayersWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:TRPServerPanel.Views"
+        mc:Ignorable="d"
+        Title="Player Manager" Height="550" Width="950"
+        WindowStartupLocation="CenterScreen"
+        Background="Transparent"
+        AllowsTransparency="True"
+        WindowStyle="None">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="../Themes/Theme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            
+            <Style x:Key="HPBarStyle" TargetType="ProgressBar">
+                <Setter Property="Height" Value="4"/>
+                <Setter Property="Background" Value="#20FFFFFF"/>
+                <Setter Property="Foreground" Value="#00FF00"/>
+                <Setter Property="BorderThickness" Value="0"/>
+            </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Border Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource GlassBorderBrush}" BorderThickness="1" CornerRadius="12">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="40"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Border Grid.Row="0" Background="#0A0A0A" CornerRadius="12,12,0,0" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                <Grid Margin="15,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{DynamicResource Str_PlayersList}" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <Button Command="{Binding RefreshPlayersCommand}" Margin="10,5" Padding="10,2" Content="↻ REFRESH DB" Background="#20FFFFFF" Foreground="#888888" BorderThickness="0" FontSize="9" Cursor="Hand"/>
+                    </StackPanel>
+                    <Button Content="✕" HorizontalAlignment="Right" Foreground="White" Background="Transparent" BorderThickness="0" Click="Close_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Player List -->
+            <Grid Grid.Row="1" Margin="15">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Table Header -->
+                <Grid Grid.Row="0" Margin="10,0,10,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="150"/>
+                        <ColumnDefinition Width="130"/>
+                        <ColumnDefinition Width="180"/>
+                        <ColumnDefinition Width="100"/>
+                        <ColumnDefinition Width="120"/>
+                        <ColumnDefinition Width="80"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="1" Text="PLAYER NAME" Foreground="#505050" FontSize="10" FontWeight="Bold"/>
+                    <TextBlock Grid.Column="2" Text="STEAM ID" Foreground="#505050" FontSize="10" FontWeight="Bold"/>
+                    <TextBlock Grid.Column="3" Text="IP / COUNTRY" Foreground="#505050" FontSize="10" FontWeight="Bold"/>
+                    <TextBlock Grid.Column="4" Text="PLAYTIME" Foreground="#505050" FontSize="10" FontWeight="Bold"/>
+                    <TextBlock Grid.Column="5" Text="LAST SEEN" Foreground="#505050" FontSize="10" FontWeight="Bold"/>
+                    <TextBlock Grid.Column="6" Text="HP / PING" Foreground="#505050" FontSize="10" FontWeight="Bold"/>
+                    <TextBlock Grid.Column="7" Text="ACTIONS" Foreground="#505050" FontSize="10" FontWeight="Bold" HorizontalAlignment="Right"/>
+                </Grid>
+
+                <!-- List Content -->
+                <ScrollViewer Grid.Row="1">
+                    <StackPanel>
+                        <ItemsControl ItemsSource="{Binding PlayerIdentities}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#0DFFFFFF" Margin="0,0,0,5" Padding="10" CornerRadius="4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="40"/>
+                                                <ColumnDefinition Width="150"/>
+                                                <ColumnDefinition Width="130"/>
+                                                <ColumnDefinition Width="180"/>
+                                                <ColumnDefinition Width="100"/>
+                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="80"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Status & Avatar -->
+                                            <Grid Grid.Column="0">
+                                                <Border Width="24" Height="24" Background="#20FFFFFF" CornerRadius="12" HorizontalAlignment="Left">
+                                                    <TextBlock Text="👤" Foreground="White" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                                </Border>
+                                                <Ellipse Width="8" Height="8" Fill="{Binding StatusColor}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,2"/>
+                                            </Grid>
+
+                                            <TextBlock Grid.Column="1" Text="{Binding Username}" Foreground="White" VerticalAlignment="Center" FontWeight="Bold"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding SteamID}" Foreground="#808080" VerticalAlignment="Center" FontSize="11"/>
+                                            
+                                            <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding IPAddress}" Foreground="White" FontSize="11"/>
+                                                <TextBlock Text="{Binding Country}" Foreground="#808080" FontSize="10"/>
+                                            </StackPanel>
+
+                                            <TextBlock Grid.Column="4" Text="{Binding PlaytimeFormatted}" Foreground="White" VerticalAlignment="Center" FontSize="11"/>
+                                            <TextBlock Grid.Column="5" Text="{Binding LastSeenFormatted}" Foreground="#808080" VerticalAlignment="Center" FontSize="11"/>
+                                            
+                                            <StackPanel Grid.Column="6" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Ping, StringFormat=\{0\}ms}" Foreground="{Binding StatusColor}" FontSize="10" Visibility="{Binding IsOnline, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                <ProgressBar Value="{Binding Health}" Maximum="100" Style="{StaticResource HPBarStyle}" Margin="0,2,0,0" Visibility="{Binding IsOnline, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="7" Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <Button Content="BAN" Style="{StaticResource AntigravityButtonStyle}" Width="50" FontSize="9"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+
+            <!-- Bottom Stats -->
+            <Border Grid.Row="2" Background="#0A0A0A" CornerRadius="0,0,12,12">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="15,0">
+                    <TextBlock Text="TOTAL IDENTITIES DISCOVERED: " Foreground="#505050" FontSize="10" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding PlayerIdentities.Count}" Foreground="White" FontSize="10" FontWeight="Bold" Margin="5,0,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>
+

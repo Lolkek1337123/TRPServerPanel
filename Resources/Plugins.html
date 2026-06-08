@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <script>
+        if (window.self !== window.top) {
+            document.documentElement.classList.add('in-iframe');
+            document.addEventListener('DOMContentLoaded', () => {
+                document.body.classList.add('in-iframe');
+            });
+            
+            // Inside iframe we MUST use window.parent.postMessage wrapper to send messages to C#,
+            // and we MUST override/mock window.chrome.webview to route through window.parent.
+            const target = new EventTarget();
+            const mockWebview = {
+                postMessage: function(msg) {
+                    window.parent.postMessage({ action: "forward_to_csharp", payload: msg }, "*");
+                },
+                addEventListener: function(type, listener) {
+                    target.addEventListener(type, listener);
+                },
+                removeEventListener: function(type, listener) {
+                    target.removeEventListener(type, listener);
+                },
+                dispatchEvent: function(event) {
+                    target.dispatchEvent(event);
+                }
+            };
+            
+            try {
+                Object.defineProperty(window, 'chrome', {
+                    value: { webview: mockWebview },
+                    writable: true,
+                    configurable: true
+                });
+            } catch (e) {
+                window.chrome = { webview: mockWebview };
+            }
+            
+            window.addEventListener('message', event => {
+                if (event.source === window.parent) {
+                    if (event.data) {
+                        try {
+                            const newEvent = new MessageEvent('message', {
+                                data: event.data
+                            });
+                            window.chrome.webview.dispatchEvent(newEvent);
+                        } catch (e) {
+                            console.error('Error dispatching message event:', e);
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+
+    
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TRP SERVER PANEL | PLUGIN MANAGER (MONACO)</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <!-- Monaco Editor Loader -->
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
+    <link rel="stylesheet" href="theme.css">
+
+    <script defer src="js/alpine.min.js"></script>
+
+</head>
+
+<body class="h-screen flex flex-col p-4 overflow-hidden">
+
+    <div class="flex flex-col flex-1 min-h-0 space-y-6">
+
+        <!-- Header -->
+
+        <header class="h-16 flex justify-between items-center px-6 glass flex-shrink-0" onmousedown="onDrag(event)">
+            <div class="flex items-center space-x-6">
+                <button onclick="window.parent.postMessage({action:'close_subpage'},'*')" class="w-10 h-10 glass flex items-center justify-center hover:bg-white/10 transition-all text-gray-500 hover:text-white" title="Назад">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <div class="w-12 h-12 bg-red-600/10 flex items-center justify-center border border-red-600/20 text-red-500 shadow-lg">
+                    <i class="fas fa-microchip text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black italic tracking-tighter uppercase leading-none pixel-font text-primary">PLUGIN ENGINE</h1>
+                    <p class="text-[9px] text-gray-500 font-bold tracking-[0.3em] uppercase mt-1">Advanced Administration Layer</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <div class="relative w-64 mr-4">
+                    <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-[10px]"></i>
+                    <input id="plugin-search" oninput="filterPlugins()" type="text" placeholder="SEARCH CORE MODULES..." class="w-full bg-black/40 border border-white/5 pl-10 pr-4 py-2 text-[9px] font-black uppercase text-white outline-none focus:border-red-500/30 transition-all placeholder:text-gray-700">
+                </div>
+                <button onclick="refreshPlugins()" class="w-10 h-10 glass flex items-center justify-center hover:bg-white/10 transition-all group">
+                    <i class="fas fa-sync-alt text-gray-400 group-hover:text-white transition-all"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+
+        <div class="flex-1 flex flex-col glass -[32px] overflow-hidden border-white/5">
+
+            <div class="p-5 px-10 border-b border-white/5 bg-white/[0.02] grid grid-cols-12 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">
+
+                <div class="col-span-4 italic">Module Identity</div>
+
+                <div class="col-span-2">Technical Info</div>
+
+                <div class="col-span-2 text-center">Engine Status</div>
+
+                <div class="col-span-4 text-right">Real-time Controls</div>
+
+            </div>
+
+            <div id="plugin-list" class="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
+
+                <!-- Data injected here -->
+
+            </div>
+
+            <div class="p-4 px-10 border-t border-white/5 bg-black/40 flex justify-between items-center text-[9px] font-black text-gray-700 uppercase tracking-widest flex-shrink-0">
+
+                <div>LOGGED MODULES: <span id="count-loaded" class="text-red-900">0</span> // DISK CACHE: <span id="count-total" class="text-gray-500">0</span></div>
+
+                <div id="plugin-pagination" class="flex items-center space-x-3 text-white">RED RUST INFRASTRUCTURE // MONACO ENABLED</div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- CODE EDITOR OVERLAY (MONACO) -->
+
+    <div id="editor-overlay" class="editor-overlay">
+
+        <div class="editor-window glass shadow-2xl">
+
+            <!-- Editor Header -->
+
+            <div class="p-6 border-b border-white/5 flex justify-between items-center bg-black/40">
+
+                <div class="flex items-center space-x-4">
+
+                    <div class="w-10 h-10 bg-red-600/10  flex items-center justify-center border border-red-600/20">
+
+                        <i id="editor-type-icon" class="fas fa-terminal text-red-600"></i>
+
+                    </div>
+
+                    <div>
+
+                        <h2 id="editor-title" class="text-lg font-black italic uppercase italic">Source Inspector</h2>
+
+                        <p id="editor-filename" class="text-[9px] text-gray-500 font-bold uppercase tracking-[0.3em]">loading...</p>
+
+                    </div>
+
+                </div>
+
+                <div class="flex space-x-3">
+
+                    <button onclick="saveCurrentFile()" class="p-4 px-8  bg-red-600 hover:bg-red-500 font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-red-600/20 flex items-center group">
+
+                        <i class="fas fa-cloud-upload-alt mr-3 group-hover:scale-125 transition-transform"></i> Sync to Disk
+
+                    </button>
+
+                    <button onclick="closeEditor()" class="w-12 h-12  glass flex items-center justify-center hover:bg-white/10 transition-all text-gray-400 hover:text-white">
+
+                        <i class="fas fa-times"></i>
+
+                    </button>
+
+                </div>
+
+            </div>
+
+            <!-- Editor Tabs -->
+
+            <div id="file-tabs" class="flex px-6 bg-black/20 border-b border-white/5"></div>
+
+            <!-- Monaco Container -->
+
+            <div id="monaco-container"></div>
+
+            <!-- Editor Status -->
+
+            <div class="p-3 px-6 bg-black/60 border-t border-white/5 flex justify-between items-center">
+
+                <div id="editor-status" class="text-[8px] font-black text-gray-500 uppercase italic">Code Intelligence Active</div>
+
+                <div class="flex items-center space-x-6">
+
+                    <div class="text-[8px] font-black text-gray-700 uppercase"><i class="fas fa-code-branch mr-1"></i> main</div>
+
+                    <div class="text-[8px] font-black text-gray-700 uppercase"><i class="fas fa-hashtag mr-1"></i> UTF-8</div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- NOTIFICATION CONTAINER -->
+
+    <div id="notif-container" class="fixed bottom-10 right-10 space-y-4 z-[2000]"></div>
+
+    <!-- INFO MODAL -->
+    <div id="info-modal" class="fixed inset-0 hidden items-center justify-center z-[3000] bg-black/90 backdrop-blur-md">
+        <div class="modal-base w-[600px] p-8 text-center space-y-6 border-red-600/20">
+            <div class="w-16 h-16 bg-red-600/10 flex items-center justify-center mx-auto border border-red-600/20">
+                <i class="fas fa-exclamation-triangle text-2xl text-red-600"></i>
+            </div>
+            <div>
+                <h3 id="info-title" class="font-black italic uppercase tracking-tighter text-2xl pixel-font text-red-500">Compiler Diagnostic</h3>
+                <pre id="info-text" class="text-[10px] text-gray-400 font-mono mt-4 p-4 bg-black/50 border border-white/5 text-left overflow-x-auto whitespace-pre-wrap max-h-60 custom-scrollbar uppercase leading-relaxed"></pre>
+            </div>
+            <div class="pt-2">
+                <button onclick="hideInfo()" class="w-full p-4 glass hover:bg-white/5 font-black text-[10px] uppercase tracking-widest transition-all">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRMATION MODAL -->
+
+    <div id="confirm-modal" class="fixed inset-0 hidden items-center justify-center z-[3000] bg-black/90 backdrop-blur-md">
+
+        <div class="modal-base w-96 p-8 -[40px] text-center space-y-6 border-red-600/20">
+
+            <div class="w-16 h-16 bg-red-600/10  flex items-center justify-center mx-auto border border-red-600/20">
+
+                <i class="fas fa-skull-crossbones text-2xl text-red-600"></i>
+
+            </div>
+
+            <div>
+
+                <h3 class="font-black italic uppercase tracking-tighter text-2xl pixel-font">Destructive Action</h3>
+
+                <p id="confirm-text" class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-2 px-6 leading-relaxed">Warning: This operation will permanently remove resources from the live server.</p>
+
+                <div id="data-warning" class="hidden danger-zone">
+
+                    <div class="flex items-center text-red-500 text-[10px] font-black uppercase mb-1">
+
+                        <i class="fas fa-exclamation-triangle mr-2"></i> Critical Data Loss Risk
+
+                    </div>
+
+                    <div class="text-[9px] text-red-300 font-bold uppercase opacity-80 leading-tight">
+
+                        Deleting player data files will reset ranks, currency, or progress for all users.
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="flex space-x-4 pt-2">
+
+                <button onclick="hideConfirm()" class="flex-1 p-4  glass hover:bg-white/5 font-black text-[10px] uppercase tracking-widest transition-all">Abort</button>
+
+                <button id="btn-confirm-yes" class="flex-1 p-4  bg-red-600 hover:bg-red-500 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-600/30 transition-all">Execute Purge</button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        function safePostMessage(obj) {
+            if (window.chrome && window.chrome.webview) {
+                try { window.chrome.webview.postMessage(obj); } catch (e) { }
+            }
+        }
+
+        window.onerror = function(message, source, lineno, colno, error) {
+            safePostMessage({
+                action: "js_error",
+                message: message,
+                source: source,
+                lineno: lineno,
+                colno: colno,
+                error: error ? error.stack : ''
+            });
+            return false;
+        };
+
+        function onDrag(e) {
+            if (e.target.closest('button, input, select, textarea, .no-drag')) return;
+            safePostMessage({ action: "drag" });
+        }
+
+
+        
+
+        let allPlugins = [];
+
+        let filteredPlugins = [];
+
+        let currentEditingPlugin = "";
+
+        let pluginPageSize = 25;
+
+        let pluginCurrentPage = 1;
+
+        let relatedFiles = [];
+
+        let activeFilePath = "";
+
+        let editor;
+
+        // Monaco Initialization
+
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+
+        require(['vs/editor/editor.main'], function () {
+
+            editor = monaco.editor.create(document.getElementById('monaco-container'), {
+
+                value: "",
+
+                language: 'csharp',
+
+                theme: 'vs-dark',
+
+                automaticLayout: true,
+
+                fontSize: 13,
+
+                fontFamily: "'Fira Code', monospace",
+
+                minimap: { enabled: true },
+
+                padding: { top: 20 },
+
+                lineNumbersMinChars: 3,
+
+                cursorSmoothCaretAnimation: "on"
+
+            });
+
+            window.editor = editor;
+
+        });
+
+        // Communication Bridge
+
+        function postBridgeMessage(action, data = {}) {
+
+            if (window.chrome && window.chrome.webview) {
+
+                console.log("[JS BRIDGE] Sending:", action, data);
+
+                window.chrome.webview.postMessage({ action, ...data });
+
+            } else {
+
+                console.warn("[JS BRIDGE] WebView2 not ready");
+
+            }
+
+        }
+
+        if (window.chrome && window.chrome.webview) {
+            window.chrome.webview.addEventListener('message', event => {
+
+                const msg = event.data;
+
+                console.log("[BRIDGE] Received message:", msg);
+
+                switch(msg.type) {
+
+                    case 'local_plugins_results':
+
+                        console.log("[BRIDGE] Local plugins results:", msg);
+
+                        if (!msg.plugins || !Array.isArray(msg.plugins)) {
+
+                            console.error("[BRIDGE] Invalid plugins data! Expected array, got:", typeof msg.plugins);
+
+                            allPlugins = [];
+
+                        } else {
+
+                            console.log(`[BRIDGE] Successfully received ${msg.plugins.length} plugins.`);
+
+                            allPlugins = msg.plugins;
+
+                        }
+
+                        filteredPlugins = [...allPlugins];
+
+                        const pageCount = getPluginPageCount();
+                        if (pluginCurrentPage > pageCount) {
+                            pluginCurrentPage = Math.max(1, pageCount);
+                        }
+
+                        renderPlugins();
+
+                        if (window.updateStats) updateStats();
+
+                        break;
+
+                    case 'plugin_data_results':
+
+                        relatedFiles = msg.files;
+
+                        renderFileTabs();
+
+                        break;
+
+                    case 'file_content_results':
+
+                        if (editor) {
+
+                            const isJson = msg.path.endsWith('.json');
+
+                            monaco.editor.setModelLanguage(editor.getModel(), isJson ? 'json' : 'csharp');
+
+                            editor.setValue(msg.content);
+
+                            activeFilePath = msg.path;
+
+                            updateActiveTab(msg.path);
+
+                        }
+
+                        break;
+
+                }
+
+            });
+        }
+
+        function refreshPlugins() {
+
+            postBridgeMessage('get_local_plugins');
+
+        }
+
+        document.addEventListener('DOMContentLoaded', refreshPlugins);
+
+        function updateStats() {
+
+            const loaded = allPlugins.filter(p => p.IsEnabled).length;
+
+            document.getElementById('count-loaded').innerText = loaded;
+
+            document.getElementById('count-total').innerText = allPlugins.length;
+
+        }
+
+        function filterPlugins() {
+
+            const query = document.getElementById('plugin-search').value.toLowerCase();
+
+            filteredPlugins = allPlugins.filter(p => p.Name.toLowerCase().includes(query));
+
+            pluginCurrentPage = 1;
+
+            renderPlugins();
+
+        }
+
+        function getPluginPageCount() {
+            return Math.ceil(filteredPlugins.length / pluginPageSize);
+        }
+
+        function renderPaginationControls() {
+            const paginationContainer = document.getElementById('plugin-pagination');
+            if (!paginationContainer) return;
+
+            const pageCount = getPluginPageCount();
+            if (pageCount <= 1) {
+                paginationContainer.innerHTML = 'RED RUST INFRASTRUCTURE // MONACO ENABLED';
+                return;
+            }
+
+            const startIdx = (pluginCurrentPage - 1) * pluginPageSize + 1;
+            const endIdx = Math.min(filteredPlugins.length, pluginCurrentPage * pluginPageSize);
+
+            paginationContainer.innerHTML = `
+                <span class="text-gray-500 mr-2">SHOWING ${startIdx}-${endIdx} OF ${filteredPlugins.length}</span>
+                <button onclick="changePluginPage(-1)" ${pluginCurrentPage === 1 ? 'disabled class="opacity-40 cursor-not-allowed px-2.5 py-1 border border-white/10 text-[8px] font-black uppercase tracking-widest"' : 'class="hover:bg-white/5 px-2.5 py-1 border border-white/10 text-[8px] font-black uppercase tracking-widest text-white"'} class="transition-all">BACK</button>
+                <span class="font-mono text-white/80 tracking-widest text-[8px]">PAGE ${pluginCurrentPage} / ${pageCount}</span>
+                <button onclick="changePluginPage(1)" ${pluginCurrentPage >= pageCount ? 'disabled class="opacity-40 cursor-not-allowed px-2.5 py-1 border border-white/10 text-[8px] font-black uppercase tracking-widest"' : 'class="hover:bg-white/5 px-2.5 py-1 border border-white/10 text-[8px] font-black uppercase tracking-widest text-white"'} class="transition-all">NEXT</button>
+            `;
+        }
+
+        function changePluginPage(delta) {
+            const pageCount = getPluginPageCount();
+            const newPage = pluginCurrentPage + delta;
+            if (newPage >= 1 && newPage <= pageCount) {
+                pluginCurrentPage = newPage;
+                renderPlugins();
+                const container = document.getElementById('plugin-list');
+                if (container) container.scrollTop = 0;
+            }
+        }
+
+        function renderPlugins() {
+
+            const container = document.getElementById('plugin-list');
+
+            if (filteredPlugins.length === 0) {
+
+                container.innerHTML = `<div class="flex h-full items-center justify-center opacity-10 uppercase font-black italic">No matches found</div>`;
+
+                renderPaginationControls();
+
+                return;
+
+            }
+
+            const start = (pluginCurrentPage - 1) * pluginPageSize;
+            const paginated = filteredPlugins.slice(start, start + pluginPageSize);
+
+            window.pluginCompileErrors = {};
+
+            container.innerHTML = paginated.map(p => {
+
+                // [ESC] Escape backslashes for Windows paths in onclick attributes
+
+                const safePath = p.FullPath ? p.FullPath.replace(/\\/g, '\\\\') : '';
+
+                if (p.CompileError) {
+                    window.pluginCompileErrors[p.Name] = p.CompileError;
+                }
+
+                return `
+
+                <div class="plugin-card p-5 px-10  grid grid-cols-12 items-center">
+
+                    <div class="col-span-4 flex items-center space-x-5">
+
+                        <div class="w-11 h-11 bg-white/5  flex items-center justify-center border border-white/5 text-gray-500">
+
+                            <i class="fas fa-plug text-xs"></i>
+
+                        </div>
+
+                        <div>
+
+                            <div class="text-[13px] font-black italic tracking-tight uppercase">${p.Name}</div>
+
+                            <div class="text-[8px] text-red-900 font-bold uppercase tracking-[0.2em] mt-0.5">${p.Author}</div>
+                            ${p.MissingDependencies && p.MissingDependencies.length > 0 ? `
+                                <div class="mt-2 flex flex-wrap gap-1">
+                                    ${p.MissingDependencies.map(d => `<span class="px-2 py-0.5 bg-red-600/20 border border-red-500/30 text-red-500 text-[6px] font-black uppercase tracking-tighter"><i class="fas fa-exclamation-triangle mr-1"></i> Missing: ${d}</span>`).join('')}
+                                </div>
+                            ` : ''}
+
+                        </div>
+
+                    </div>
+
+                    <div class="col-span-2 space-y-0.5">
+
+                        <div class="text-[10px] font-black text-white/50 uppercase italic group">v${p.Version}</div>
+
+                        <div class="text-[8px] text-gray-600 font-bold uppercase tracking-widest italic">Core Logic</div>
+
+                    </div>
+
+                    <div class="col-span-2 flex flex-col items-center justify-center">
+
+                        <span class="status-pill ${!p.IsEnabled ? 'status-offline' : (p.Status === 'Error' ? 'bg-red-600/20 border border-red-500/30 text-red-500' : 'status-online')}">
+
+                            <i class="fas fa-circle text-[4px] mr-2"></i> ${!p.IsEnabled ? 'Offline' : (p.Status === 'Error' ? 'Error' : 'Active')}
+
+                        </span>
+                        
+                        ${p.IsEnabled && p.Status === 'Error' && p.CompileError ? `
+                            <button onclick="showCompileError('${p.Name}')" class="mt-1 text-[8px] text-red-500 font-bold uppercase tracking-widest hover:underline hover:text-red-400">
+                                <i class="fas fa-info-circle mr-1"></i> Details
+                            </button>
+                        ` : ''}
+
+                    </div>
+
+                    <div class="col-span-4 flex justify-end space-x-2">
+
+                        <div class="action-btn btn-reload" onclick="doAction('${p.Name}', 'reload')" title="Hot Reload"><i class="fas fa-sync-alt"></i></div>
+
+                        <div class="action-btn ${p.IsEnabled ? 'btn-stop' : 'btn-play'}" onclick="doAction('${p.Name}', '${p.IsEnabled ? 'unload' : 'load'}')">
+
+                            <i class="fas ${p.IsEnabled ? 'fa-pause' : 'fa-play'}"></i>
+
+                        </div>
+
+                        <div class="w-[1px] h-6 bg-white/5 mx-2"></div>
+
+                        <div class="action-btn btn-play" onclick="openInspector('${p.Name}', '${safePath}')" title="VS Code Inspector"><i class="fas fa-code"></i></div>
+
+                        <div class="action-btn btn-delete" onclick="askDelete('${p.Name}')" title="Delete Source"><i class="fas fa-trash"></i></div>
+
+                    </div>
+
+                </div>
+
+            `;}).join('');
+
+            renderPaginationControls();
+
+        }
+
+        // Actions
+
+        function doAction(name, action) {
+
+            postBridgeMessage('plugin_action', { pluginName: name, pluginAction: action });
+
+            notify('ORCHESTRATOR', `Sent ${action.toUpperCase()} command to ${name}.`);
+
+            setTimeout(refreshPlugins, 1200);
+
+        }
+
+        function askDelete(name, isData = false) {
+
+            const msg = isData ? `Permanently remove data file ${name}?` : `Delete plugin source code ${name}.cs? This cannot be undone.`;
+
+            showConfirm(msg, isData, () => {
+
+                if (isData) {
+
+                    // Custom logic for data deletion if needed
+
+                    postBridgeMessage('save_plugin_file', { path: activeFilePath, content: "{}" }); // Clear data instead of delete?
+
+                    notify('DATA PURGE', `${name} cleared.`);
+
+                } else {
+
+                    postBridgeMessage('delete_plugin', { pluginName: name });
+
+                    notify('CORE PURGE', `${name} removed from disk.`);
+
+                }
+
+                refreshPlugins();
+
+                if(editor) closeEditor();
+
+            });
+
+        }
+
+        // Editor Control
+
+        function openInspector(name, csPath) {
+
+            currentEditingPlugin = name;
+
+            document.getElementById('editor-title').innerText = name.toUpperCase();
+
+            document.getElementById('editor-filename').innerText = name + ".cs";
+
+            document.getElementById('editor-overlay').style.display = 'block';
+
+            postBridgeMessage('read_plugin_file', { path: csPath });
+
+            postBridgeMessage('get_plugin_data', { pluginName: name });
+
+            setTimeout(() => { if(editor) editor.layout(); }, 100);
+
+        }
+
+        function closeEditor() {
+
+            document.getElementById('editor-overlay').style.display = 'none';
+
+            refreshPlugins();
+
+        }
+
+        function renderFileTabs() {
+
+            const csFile = allPlugins.find(p => p.Name === currentEditingPlugin);
+
+            const tabs = document.getElementById('file-tabs');
+
+            let html = `<div class="file-tab active" data-path="${csFile.FullPath}" onclick="loadFile('${csFile.FullPath}', false)">
+
+                            <i class="fas fa-file-code"></i> Source (.cs)
+
+                        </div>`;
+
+            relatedFiles.forEach(f => {
+
+                html += `<div class="file-tab group" data-path="${f.FullPath}" onclick="loadFile('${f.FullPath}', true)">
+
+                            <i class="fas ${f.Type === 'configs' ? 'fa-cog' : 'fa-database'}"></i> ${f.Type === 'configs' ? 'Config' : 'Data'}
+
+                            <div class="ml-3 opacity-0 group-hover:opacity-100 transition-opacity" onclick="event.stopPropagation(); askDelete('${f.Name}', true)">
+
+                                <i class="fas fa-trash-alt text-red-500/50 hover:text-red-500"></i>
+
+                            </div>
+
+                        </div>`;
+
+            });
+
+            tabs.innerHTML = html;
+
+        }
+
+        function loadFile(path, isData) {
+
+            postBridgeMessage('read_plugin_file', { path: path });
+
+            document.getElementById('editor-filename').innerText = path.split('\\').pop();
+
+            document.getElementById('editor-type-icon').className = isData ? 'fas fa-database text-blue-500' : 'fas fa-terminal text-red-600';
+
+        }
+
+        function updateActiveTab(path) {
+
+            document.querySelectorAll('.file-tab').forEach(tab => {
+
+                tab.classList.toggle('active', tab.getAttribute('data-path') === path);
+
+            });
+
+        }
+
+        function saveCurrentFile() {
+
+            if (!editor) return;
+
+            const content = editor.getValue();
+
+            postBridgeMessage('save_plugin_file', { path: activeFilePath, content });
+
+            notify('SYNC STATUS', 'Changes deployed to server successfully.');
+
+        }
+
+        // UI Utils
+
+        function showConfirm(text, showDanger, onYes) {
+
+            document.getElementById('confirm-text').innerText = text;
+
+            document.getElementById('data-warning').style.display = showDanger ? 'block' : 'none';
+
+            document.getElementById('confirm-modal').style.display = 'flex';
+
+            document.getElementById('btn-confirm-yes').onclick = () => {
+
+                onYes();
+
+                hideConfirm();
+
+            };
+
+        }
+
+        function hideConfirm() {
+
+            document.getElementById('confirm-modal').style.display = 'none';
+
+        }
+
+        function showCompileError(name, err) {
+            document.getElementById('info-title').innerText = "Compiler Error: " + name;
+            document.getElementById('info-text').innerText = err || window.pluginCompileErrors[name] || 'No error details available';
+            document.getElementById('info-modal').style.display = 'flex';
+        }
+        
+        function hideInfo() {
+            document.getElementById('info-modal').style.display = 'none';
+        }
+
+        function notify(title, text) {
+
+            const id = Date.now();
+
+            const html = `
+
+                <div id="notif-${id}" class="glass p-5 -[20px] border-l-2 border-red-600 flex items-start space-x-3 w-80 transform translate-x-full transition-all duration-500 shadow-2xl">
+
+                    <div class="w-8 h-8  bg-red-600/10 flex items-center justify-center border border-red-600/20">
+
+                        <i class="fas fa-bolt text-[10px] text-red-600"></i>
+
+                    </div>
+
+                    <div class="flex-1">
+
+                        <div class="text-[10px] font-black italic uppercase italic tracking-widest">${title}</div>
+
+                        <div class="text-[9px] text-gray-500 font-bold uppercase mt-1 leading-tight">${text}</div>
+
+                    </div>
+
+                </div>
+
+            `;
+
+            const container = document.getElementById('notif-container');
+
+            container.insertAdjacentHTML('beforeend', html);
+
+            setTimeout(() => document.getElementById(`notif-${id}`).classList.remove('translate-x-full'), 100);
+
+            setTimeout(() => {
+
+                const el = document.getElementById(`notif-${id}`);
+
+                if (el) {
+
+                    el.classList.add('translate-x-full');
+
+                    setTimeout(() => el.remove(), 600);
+
+                }
+
+            }, 3500);
+
+        }
+
+    </script>
+
+    <footer class="h-8 flex-shrink-0 glass border-t border-white/5 flex items-center justify-between px-4 z-50 fixed bottom-0 left-0 right-0">
+
+        <div class="flex items-center space-x-4">
+
+            <button onclick="window.parent.postMessage({action:'close_subpage'},'*')" class="flex items-center space-x-2 px-3 py-1 bg-red-600/10 border border-red-500/20  hover:bg-red-600 hover:text-white transition-all group">
+
+                <i class="fas fa-terminal text-[10px] text-red-500 group-hover:text-white"></i>
+
+                <span class="text-[9px] font-black uppercase tracking-widest">SERVER CONSOLE</span>
+
+            </button>
+
+            <button onclick="window.location.href='AppLogs.html'" class="flex items-center space-x-2 px-3 py-1 bg-blue-600/10 border border-blue-500/20  hover:bg-blue-600 hover:text-white transition-all group">
+
+                <i class="fas fa-microchip text-[10px] text-blue-500 group-hover:text-white"></i>
+
+                <span class="text-[9px] font-black uppercase tracking-widest">APP DIAGNOSTICS</span>
+
+            </button>
+
+            <div class="h-3 w-[1px] bg-white/10"></div>
+
+            <div class="flex items-center space-x-2">
+
+                <div class="w-1 h-1  bg-red-500 animate-pulse"></div>
+
+                <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest">Plugin Manager Active</span>
+
+            </div>
+
+        </div>
+
+        <div class="flex items-center space-x-6">
+
+            <span class="text-[7px] font-black text-gray-600 uppercase tracking-widest">© 2026 TEAM RUST PLUGINS</span>
+
+        </div>
+
+    </footer>
+
+</body>
+
+</html>
+

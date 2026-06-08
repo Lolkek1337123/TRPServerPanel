@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <script defer src="js/alpine.min.js"></script>
+    <meta charset="UTF-8">
+    <script>
+        if (window.self !== window.top) {
+            document.documentElement.classList.add('in-iframe');
+            document.addEventListener('DOMContentLoaded', () => {
+                document.body.classList.add('in-iframe');
+            });
+            
+            // Inside iframe we MUST use window.parent.postMessage wrapper to send messages to C#,
+            // and we MUST override/mock window.chrome.webview to route through window.parent.
+            const target = new EventTarget();
+            const mockWebview = {
+                postMessage: function(msg) {
+                    window.parent.postMessage({ action: "forward_to_csharp", payload: msg }, "*");
+                },
+                addEventListener: function(type, listener) {
+                    target.addEventListener(type, listener);
+                },
+                removeEventListener: function(type, listener) {
+                    target.removeEventListener(type, listener);
+                },
+                dispatchEvent: function(event) {
+                    target.dispatchEvent(event);
+                }
+            };
+            
+            try {
+                Object.defineProperty(window, 'chrome', {
+                    value: { webview: mockWebview },
+                    writable: true,
+                    configurable: true
+                });
+            } catch (e) {
+                window.chrome = { webview: mockWebview };
+            }
+            
+            window.addEventListener('message', event => {
+                if (event.source === window.parent) {
+                    if (event.data) {
+                        try {
+                            const newEvent = new MessageEvent('message', {
+                                data: event.data
+                            });
+                            window.chrome.webview.dispatchEvent(newEvent);
+                        } catch (e) {
+                            console.error('Error dispatching message event:', e);
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRP PLAYER DATABASE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="theme.css">
+    <style>
+        [x-cloak] { display: none !important; }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 0, 0, 0.2);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 0, 0, 0.4);
+        }
+        .player-row {
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .player-row:hover {
+            background: rgba(255, 255, 255, 0.02) !important;
+            border-color: rgba(255, 0, 0, 0.2) !important;
+        }
+        /* Pulse Animation */
+        @keyframes pulse-glow {
+            0%, 100% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 10px rgba(34, 197, 94, 0.8); }
+        }
+        .pulse-online {
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body x-data="playerManager()" x-init="init()" class="h-screen flex flex-col p-4 overflow-hidden">
+    <!-- Header -->
+    <header class="h-16 flex items-center px-4 justify-between border-b border-white/5 bg-black/20 mb-6 flex-shrink-0" @mousedown="onDrag($event)">
+        <div class="flex items-center space-x-6">
+            <button @click="navigateTo('Dashboard.html')" class="w-10 h-10 glass flex items-center justify-center hover:bg-white/10 transition-all text-gray-500 hover:text-white" title="Назад">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <div class="w-12 h-12 bg-red-600/10 border border-red-500/20 flex items-center justify-center text-red-500 shadow-lg">
+                <i class="fas fa-users text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl font-black italic tracking-tighter uppercase neon-text pixel-font text-primary pointer-events-none" x-text="t('page_title')"></h1>
+                <p class="text-[9px] text-gray-500 font-bold tracking-[0.3em] uppercase pointer-events-none" x-text="t('page_subtitle')"></p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2">
+            <!-- Language Switcher -->
+            <div class="flex border border-white/10 p-0.5 bg-black/40 mr-2">
+                <button @click="setLang('ru')" :class="currentLang === 'ru' ? 'bg-red-500/20 text-red-500 border border-red-500/30' : 'text-white/40 hover:text-white'" class="px-2.5 py-1 text-[8px] font-black tracking-widest transition-all">RU</button>
+                <button @click="setLang('en')" :class="currentLang === 'en' ? 'bg-red-500/20 text-red-500 border border-red-500/30' : 'text-white/40 hover:text-white'" class="px-2.5 py-1 text-[8px] font-black tracking-widest transition-all">EN</button>
+            </div>
+            
+            <button @click="refresh()" class="p-3 glass hover:bg-white/5 transition-all text-xs text-white/60 hover:text-white" :title="t('btn_refresh_title')">
+                <i class="fas fa-sync-alt" :class="isRefreshing ? 'animate-spin text-red-500' : ''"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Analytics Dashboard Cards -->
+    <div class="grid grid-cols-4 gap-4 mb-6 flex-shrink-0">
+        <!-- Total Players -->
+        <div class="glass p-4 rounded-none flex items-center justify-between relative overflow-hidden">
+            <div class="shimmer-zone"></div>
+            <div>
+                <div class="text-[9px] font-black uppercase tracking-widest text-white/40" x-text="t('stats_total')"></div>
+                <div class="text-3xl font-black italic tracking-tighter text-white mt-1" x-text="players.length">0</div>
+            </div>
+            <div class="w-10 h-10 rounded-none bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500">
+                <i class="fas fa-users text-sm"></i>
+            </div>
+        </div>
+        <!-- Players Online -->
+        <div class="glass p-4 rounded-none flex items-center justify-between relative overflow-hidden">
+            <div class="shimmer-zone"></div>
+            <div>
+                <div class="text-[9px] font-black uppercase tracking-widest text-white/40" x-text="t('stats_online')"></div>
+                <div class="text-3xl font-black italic tracking-tighter text-green-500 mt-1" x-text="players.filter(p => p.IsOnline).length">0</div>
+            </div>
+            <div class="w-10 h-10 rounded-none bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-500">
+                <i class="fas fa-signal text-sm"></i>
+            </div>
+        </div>
+        <!-- Avg KD -->
+        <div class="glass p-4 rounded-none flex items-center justify-between relative overflow-hidden">
+            <div class="shimmer-zone"></div>
+            <div>
+                <div class="text-[9px] font-black uppercase tracking-widest text-white/40" x-text="t('stats_avg_kd')"></div>
+                <div class="text-3xl font-black italic tracking-tighter text-red-500 mt-1" x-text="avgKD()">0.00</div>
+            </div>
+            <div class="w-10 h-10 rounded-none bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500">
+                <i class="fas fa-crosshairs text-sm"></i>
+            </div>
+        </div>
+        <!-- Most Active -->
+        <div class="glass p-4 rounded-none flex items-center justify-between relative overflow-hidden">
+            <div class="shimmer-zone"></div>
+            <div class="truncate pr-2">
+                <div class="text-[9px] font-black uppercase tracking-widest text-white/40" x-text="t('stats_most_active')"></div>
+                <div class="text-sm font-bold text-white mt-2.5 truncate" x-text="mostActivePlayerName()">N/A</div>
+            </div>
+            <div class="w-10 h-10 rounded-none bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 flex-shrink-0">
+                <i class="fas fa-trophy text-sm"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search, Filters, and Sorting Controls -->
+    <div class="flex items-center justify-between gap-4 mb-4 flex-shrink-0">
+        <!-- Search Input -->
+        <div class="relative flex-1">
+            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-white/20"></i>
+            <input x-model="search" type="text" class="w-full cyber-input pl-12 pr-4 py-3 text-[10px] font-black uppercase tracking-widest outline-none" :placeholder="t('search_placeholder')">
+        </div>
+        
+        <!-- Status Filters -->
+        <div class="flex space-x-1 bg-black/40 p-1 border border-white/5 flex-shrink-0">
+            <button @click="statusFilter = 'all'" :class="statusFilter === 'all' ? 'bg-red-500/20 text-red-500 border border-red-500/30' : 'text-white/40 hover:text-white'" class="px-4 py-2 text-[9px] font-black uppercase tracking-widest transition-all" x-text="t('filter_all')"></button>
+            <button @click="statusFilter = 'online'" :class="statusFilter === 'online' ? 'bg-green-500/20 text-green-500 border border-green-500/30' : 'text-white/40 hover:text-white'" class="px-4 py-2 text-[9px] font-black uppercase tracking-widest transition-all" x-text="t('filter_online')"></button>
+            <button @click="statusFilter = 'offline'" :class="statusFilter === 'offline' ? 'bg-gray-500/20 text-gray-400 border border-gray-500/30' : 'text-white/40 hover:text-white'" class="px-4 py-2 text-[9px] font-black uppercase tracking-widest transition-all" x-text="t('filter_offline')"></button>
+        </div>
+
+        <!-- Sorting Select -->
+        <div class="relative min-w-[200px] flex-shrink-0">
+            <select x-model="sortBy" class="w-full bg-black/80 border border-white/10 text-white px-4 py-2.5 text-[9px] font-black uppercase tracking-widest outline-none cursor-pointer">
+                <option value="Username" x-text="t('sort_name')"></option>
+                <option value="Kills" x-text="t('sort_kills')"></option>
+                <option value="KD" x-text="t('sort_kd')"></option>
+                <option value="PlayTimeSeconds" x-text="t('sort_playtime')"></option>
+                <option value="BlueprintsCount" x-text="t('sort_blueprints')"></option>
+                <option value="LastSeen" x-text="t('sort_lastseen')"></option>
+            </select>
+        </div>
+        
+        <!-- Toggle Sort Direction -->
+        <button @click="sortDesc = !sortDesc" class="p-3 glass hover:bg-white/5 transition-all text-xs flex-shrink-0 text-white/60 hover:text-white">
+            <i :class="sortDesc ? 'fas fa-sort-amount-down-alt' : 'fas fa-sort-amount-up'"></i>
+        </button>
+    </div>
+
+    <!-- Players Table Container -->
+    <div class="flex-1 glass overflow-hidden flex flex-col border border-white/5 mb-2">
+        <!-- Table Header -->
+        <div class="grid grid-cols-12 gap-4 px-6 py-4 border-b border-white/5 bg-white/2 text-[9px] font-black uppercase tracking-widest text-white/40 select-none">
+            <div class="col-span-3 flex items-center" x-text="t('col_player')"></div>
+            <div class="col-span-2 flex items-center" x-text="t('col_steamid')"></div>
+            <div class="col-span-2 flex items-center" x-text="t('col_country')"></div>
+            <div class="col-span-1 flex items-center justify-center" x-text="t('col_kills')"></div>
+            <div class="col-span-1 flex items-center justify-center" x-text="t('col_kd')"></div>
+            <div class="col-span-1 flex items-center justify-center" x-text="t('col_blueprints')"></div>
+            <div class="col-span-2 flex items-center justify-end" x-text="t('col_actions')"></div>
+        </div>
+        
+        <!-- Table Body (Scrollable) -->
+        <div class="flex-1 overflow-y-auto divide-y divide-white/5">
+            <template x-for="player in getPaginatedPlayers()" :key="player.SteamID">
+                <div class="grid grid-cols-12 gap-4 px-6 py-4 player-row border-b border-white/5 transition-all items-center cursor-pointer" @click="selectedPlayer = player">
+                    <!-- User & Avatar -->
+                    <div class="col-span-3 flex items-center space-x-3 min-w-0">
+                        <div class="relative flex-shrink-0">
+                            <img :src="player.AvatarUrl" class="w-9 h-9 border border-white/10" alt="Avatar" onerror="this.src='https://files.facepunch.com/steam/profiles/0.png'">
+                            <div :class="player.IsOnline ? 'bg-green-500 pulse-online' : 'bg-gray-500'" class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 border border-black"></div>
+                        </div>
+                        <div class="truncate">
+                            <div x-text="player.Username" class="text-[11px] font-bold text-white truncate"></div>
+                            <div class="text-[7px] font-black tracking-widest text-white/20 uppercase mt-0.5" x-text="player.TeamName && player.TeamName !== 'No Team' ? player.TeamName : t('no_team')"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- SteamID -->
+                    <div class="col-span-2 min-w-0">
+                        <span x-text="player.SteamID" class="text-[10px] font-mono text-white/40 hover:text-white transition-colors cursor-pointer" @click.stop="copyId(player.SteamID)"></span>
+                    </div>
+                    
+                    <!-- Country -->
+                    <div class="col-span-2 flex items-center space-x-2 min-w-0">
+                        <template x-if="getFlagUrl(player.CountryCode)">
+                            <img :src="getFlagUrl(player.CountryCode)" :title="player.Country" class="h-3 w-4 border border-white/5 flex-shrink-0">
+                        </template>
+                        <span x-text="player.Country === 'Steam' ? player.CountryCode : player.Country" class="text-[9px] font-bold text-white/60 truncate"></span>
+                    </div>
+                    
+                    <!-- Kills -->
+                    <div class="col-span-1 text-center text-[10px] font-bold text-white/80" x-text="player.Kills"></div>
+                    
+                    <!-- KD -->
+                    <div class="col-span-1 text-center text-[10px] font-black text-red-500" x-text="player.KD"></div>
+                    
+                    <!-- Blueprints -->
+                    <div class="col-span-1 text-center text-[10px] font-bold text-white/80" x-text="player.BlueprintsCount"></div>
+                    
+                    <!-- Quick Actions -->
+                    <div class="col-span-2 flex justify-end space-x-2" @click.stop>
+                        <button @click="copyId(player.SteamID)" class="w-7 h-7 bg-white/5 border border-white/10 hover:border-white/30 text-white/60 hover:text-white flex items-center justify-center transition-all" :title="t('btn_copy')">
+                            <i class="fas fa-copy text-[10px]"></i>
+                        </button>
+                        <button @click="selectedPlayer = player" class="w-7 h-7 bg-white/5 border border-white/10 hover:border-white/30 text-white/60 hover:text-white flex items-center justify-center transition-all" :title="t('btn_details')">
+                            <i class="fas fa-eye text-[10px]"></i>
+                        </button>
+                        <button @click="openKick(player)" class="w-7 h-7 bg-red-500/10 border border-red-500/20 hover:border-red-500/50 text-red-500 hover:bg-red-500/20 flex items-center justify-center transition-all" :title="t('btn_kick')">
+                            <i class="fas fa-sign-out-alt text-[10px]"></i>
+                        </button>
+                    </div>
+                </div>
+            </template>
+            
+            <!-- Empty state -->
+            <template x-if="getFilteredAndSortedPlayers().length === 0">
+                <div class="flex flex-col items-center justify-center py-20 text-white/20">
+                    <i class="fas fa-user-slash text-4xl mb-4"></i>
+                    <span class="text-[9px] font-black uppercase tracking-widest" x-text="t('no_players')"></span>
+                </div>
+            </template>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="px-6 py-3 border-t border-white/5 bg-white/2 flex items-center justify-between text-[9px] font-bold text-white/60 flex-shrink-0">
+            <div>
+                <span x-text="t('shown_prefix')"></span> 
+                <span class="text-white font-mono" x-text="getFilteredAndSortedPlayers().length === 0 ? 0 : (currentPage - 1) * pageSize + 1"></span> 
+                <span x-text="t('shown_middle')"></span> 
+                <span class="text-white font-mono" x-text="Math.min(getFilteredAndSortedPlayers().length, currentPage * pageSize)"></span> 
+                <span x-text="t('shown_suffix')"></span> 
+                <span class="text-white font-mono" x-text="getFilteredAndSortedPlayers().length"></span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button @click="if(currentPage > 1) { currentPage--; $nextTick(() => $el.closest('.overflow-hidden').querySelector('.overflow-y-auto').scrollTop = 0) }" :disabled="currentPage === 1" :class="currentPage === 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/5'" class="px-3 py-1.5 border border-white/10 transition-all font-black uppercase tracking-widest text-white">
+                    <span x-text="t('btn_back')"></span>
+                </button>
+                <span class="font-mono text-white/80 uppercase tracking-widest"><span x-text="t('page_prefix')"></span> <span x-text="currentPage"></span> / <span x-text="pageCount() || 1"></span><span x-text="t('page_suffix')"></span></span>
+                <button @click="if(currentPage < pageCount()) { currentPage++; $nextTick(() => $el.closest('.overflow-hidden').querySelector('.overflow-y-auto').scrollTop = 0) }" :disabled="currentPage >= pageCount()" :class="currentPage >= pageCount() ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/5'" class="px-3 py-1.5 border border-white/10 transition-all font-black uppercase tracking-widest text-white">
+                    <span x-text="t('btn_next')"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+
+    <!-- Kick Modal -->
+    <div x-show="showKickModal" class="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" x-cloak>
+        <div class="glass w-full max-w-md p-6 relative border border-red-500/20">
+            <h3 class="text-lg font-black italic text-red-500 tracking-wider mb-4 uppercase" x-text="t('modal_kick_title')"></h3>
+            <p class="text-xs text-white/60 mb-4">
+                <span class="font-bold text-white" x-text="actionPlayer ? actionPlayer.Username : ''"></span> (SteamID: <span class="font-mono text-white/40" x-text="actionPlayer ? actionPlayer.SteamID : ''"></span>)
+            </p>
+            <div class="mb-4">
+                <label class="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-2" x-text="t('reason')"></label>
+                <input type="text" x-model="kickReason" class="w-full cyber-input px-3 py-2 text-xs outline-none bg-black/60">
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button @click="showKickModal = false" class="px-4 py-2 border border-white/10 hover:bg-white/5 text-[9px] font-black uppercase tracking-widest transition-all" x-text="t('btn_cancel')"></button>
+                <button @click="confirmKick()" class="cyber-btn px-4 py-2 text-[9px]" x-text="t('btn_confirm')"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ban Modal -->
+    <div x-show="showBanModal" class="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" x-cloak>
+        <div class="glass w-full max-w-md p-6 relative border border-red-500/20">
+            <h3 class="text-lg font-black italic text-red-500 tracking-wider mb-4 uppercase" x-text="t('modal_ban_title')"></h3>
+            <p class="text-xs text-white/60 mb-4">
+                <span class="font-bold text-white" x-text="actionPlayer ? actionPlayer.Username : ''"></span> (SteamID: <span class="font-mono text-white/40" x-text="actionPlayer ? actionPlayer.SteamID : ''"></span>)
+            </p>
+            <div class="mb-4">
+                <label class="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-2" x-text="t('reason')"></label>
+                <input type="text" x-model="banReason" class="w-full cyber-input px-3 py-2 text-xs outline-none bg-black/60">
+            </div>
+            <div class="mb-4">
+                <label class="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-2" x-text="t('duration')"></label>
+                <select x-model="banDuration" class="w-full bg-black/80 border border-white/10 text-white px-3 py-2 text-xs outline-none cursor-pointer">
+                    <option value="1h" x-text="t('dur_1h')"></option>
+                    <option value="1d" x-text="t('dur_1d')"></option>
+                    <option value="7d" x-text="t('dur_7d')"></option>
+                    <option value="0" x-text="t('dur_perm')"></option>
+                </select>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button @click="showBanModal = false" class="px-4 py-2 border border-white/10 hover:bg-white/5 text-[9px] font-black uppercase tracking-widest transition-all" x-text="t('btn_cancel')"></button>
+                <button @click="confirmBan()" class="cyber-btn px-4 py-2 text-[9px]" x-text="t('btn_confirm')"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Details Modal -->
+    <div x-show="selectedPlayer" class="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" x-cloak>
+        <div class="glass w-full max-w-2xl p-6 relative border border-red-500/20" @click.away="selectedPlayer = null">
+            <!-- Close Button -->
+            <button @click="selectedPlayer = null" class="absolute top-4 right-4 text-white/40 hover:text-white text-lg">
+                <i class="fas fa-times"></i>
+            </button>
+
+            <div class="flex items-start space-x-6">
+                <!-- Avatar -->
+                <div class="relative flex-shrink-0">
+                    <img :src="selectedPlayer ? selectedPlayer.AvatarUrl : ''" class="w-24 h-24 border border-white/10" alt="Avatar" onerror="this.src='https://files.facepunch.com/steam/profiles/0.png'">
+                    <div :class="selectedPlayer && selectedPlayer.IsOnline ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-gray-500'" class="absolute -bottom-1 -right-1 w-4 h-4 border-2 border-black"></div>
+                </div>
+                
+                <!-- Details Header -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center space-x-2">
+                        <h3 class="text-xl font-black italic text-white truncate" x-text="selectedPlayer ? selectedPlayer.Username : ''"></h3>
+                        <template x-if="selectedPlayer && getFlagUrl(selectedPlayer.CountryCode)">
+                            <img :src="getFlagUrl(selectedPlayer.CountryCode)" :title="selectedPlayer.Country" class="h-3.5 w-5 border border-white/5 flex-shrink-0">
+                        </template>
+                    </div>
+                    <p class="text-xs text-white/40 font-mono mt-1" x-text="selectedPlayer ? 'SteamID: ' + selectedPlayer.SteamID : ''"></p>
+                    <div class="flex items-center space-x-3 mt-3">
+                        <span class="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 bg-red-500/10 border border-red-500/20 text-red-500 animate-pulse" x-text="selectedPlayer && selectedPlayer.TeamName && selectedPlayer.TeamName !== 'No Team' ? selectedPlayer.TeamName : t('no_team')"></span>
+                        <span :class="selectedPlayer && selectedPlayer.IsOnline ? 'text-green-500 bg-green-500/10 border-green-500/20' : 'text-gray-400 bg-gray-500/10 border-gray-500/20'" class="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 border" x-text="selectedPlayer && selectedPlayer.IsOnline ? t('status_online') : t('status_offline')"></span>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="border-white/5 my-5">
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-3 gap-4 mb-6">
+                <div class="bg-black/30 p-3 border border-white/5">
+                    <div class="text-[8px] font-black uppercase tracking-widest text-white/40" x-text="t('col_kills')"></div>
+                    <div class="text-xl font-black italic text-white mt-1" x-text="selectedPlayer ? selectedPlayer.Kills : 0"></div>
+                </div>
+                <div class="bg-black/30 p-3 border border-white/5">
+                    <div class="text-[8px] font-black uppercase tracking-widest text-white/40" x-text="t('col_kd')"></div>
+                    <div class="text-xl font-black italic text-red-500 mt-1" x-text="selectedPlayer ? selectedPlayer.KD : '0.00'"></div>
+                </div>
+                <div class="bg-black/30 p-3 border border-white/5">
+                    <div class="text-[8px] font-black uppercase tracking-widest text-white/40" x-text="t('col_blueprints')"></div>
+                    <div class="text-xl font-black italic text-white mt-1" x-text="selectedPlayer ? selectedPlayer.BlueprintsCount : 0"></div>
+                </div>
+                <div class="bg-black/30 p-3 border border-white/5">
+                    <div class="text-[8px] font-black uppercase tracking-widest text-white/40" x-text="t('col_playtime')"></div>
+                    <div class="text-xl font-black italic text-white mt-1" x-text="selectedPlayer ? selectedPlayer.PlaytimeFormatted : '0h'"></div>
+                </div>
+                <div class="bg-black/30 p-3 border border-white/5">
+                    <div class="text-[8px] font-black uppercase tracking-widest text-white/40" x-text="t('survival_time')"></div>
+                    <div class="text-xl font-black italic text-white mt-1" x-text="selectedPlayer ? formatSurvivalTime(selectedPlayer.TotalSurvivalTimeSeconds) : '0m'"></div>
+                </div>
+                <div class="bg-black/30 p-3 border border-white/5">
+                    <div class="text-[8px] font-black uppercase tracking-widest text-white/40" x-text="t('ip_address')"></div>
+                    <div class="text-md font-mono font-bold text-white mt-1.5" x-text="selectedPlayer ? selectedPlayer.IPAddress : 'N/A'"></div>
+                </div>
+            </div>
+
+            <!-- Last Seen Box -->
+            <div class="bg-black/30 p-4 border border-white/5 mb-4">
+                <div class="text-[8px] font-black uppercase tracking-widest text-white/40" x-text="t('last_seen_date')"></div>
+                <div class="text-xs font-bold text-white mt-1" x-text="selectedPlayer ? formatDate(selectedPlayer.LastSeen) : 'N/A'"></div>
+            </div>
+
+            <!-- Unlocked Blueprints Section -->
+            <div class="mb-6">
+                <div class="text-[8px] font-black uppercase tracking-widest text-white/40 mb-2" x-text="t('blueprints_list')"></div>
+                <div class="bg-black/40 border border-white/5 p-3 max-h-36 overflow-y-auto">
+                    <template x-if="selectedPlayer && selectedPlayer.Blueprints && selectedPlayer.Blueprints.length > 0">
+                        <div class="grid grid-cols-2 gap-2">
+                            <template x-for="bp in selectedPlayer.Blueprints">
+                                <div class="flex items-center space-x-2 text-[10px] text-white/80 bg-white/2 border border-white/5 px-2 py-1.5 hover:border-red-500/30 hover:bg-red-500/5 transition-all">
+                                    <span class="w-1.5 h-1.5 bg-red-500 flex-shrink-0"></span>
+                                    <span x-text="bp.split('|')[currentLang === 'ru' ? 1 : 0] || bp"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                    <template x-if="!selectedPlayer || !selectedPlayer.Blueprints || selectedPlayer.Blueprints.length === 0">
+                        <div class="text-center py-4 text-[10px] text-white/30 tracking-widest uppercase font-bold" x-text="t('no_blueprints')"></div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Actions Panel -->
+            <div class="flex flex-wrap gap-2">
+                <button @click="copyId(selectedPlayer.SteamID)" class="cyber-btn px-4 py-2 text-[9px]">
+                    <i class="fas fa-copy"></i> <span x-text="t('btn_copy')"></span>
+                </button>
+                <button @click="openKick(selectedPlayer)" class="cyber-btn px-4 py-2 text-[9px] bg-red-500/10 border-red-500/40 hover:bg-red-500/20 text-red-500">
+                    <i class="fas fa-sign-out-alt"></i> <span x-text="t('btn_kick')"></span>
+                </button>
+                <button @click="openBan(selectedPlayer)" class="cyber-btn px-4 py-2 text-[9px] bg-red-600/20 border-red-600/40 hover:bg-red-600/30 text-red-600">
+                    <i class="fas fa-ban"></i> <span x-text="t('btn_ban')"></span>
+                </button>
+                
+                <!-- Chat Mute / Unmute -->
+                <button @click="mutePlayer(selectedPlayer)" class="cyber-btn px-4 py-2 text-[9px] bg-amber-500/10 border-amber-500/40 hover:bg-amber-500/20 text-amber-500">
+                    <i class="fas fa-volume-mute"></i> <span x-text="t('btn_mute')"></span>
+                </button>
+                <button @click="unmutePlayer(selectedPlayer)" class="cyber-btn px-4 py-2 text-[9px] bg-amber-500/10 border-amber-500/40 hover:bg-amber-500/20 text-amber-500">
+                    <i class="fas fa-volume-up"></i> <span x-text="t('btn_unmute')"></span>
+                </button>
+                
+                <!-- Wipe Blueprints -->
+                <button @click="wipeBlueprints(selectedPlayer)" class="cyber-btn px-4 py-2 text-[9px] bg-red-700/10 border-red-700/40 hover:bg-red-700/20 text-red-400">
+                    <i class="fas fa-eraser"></i> <span x-text="t('btn_wipe_bp')"></span>
+                </button>
+                
+                <!-- Teleports (Online Only) -->
+                <button @click="teleportTo(selectedPlayer)" :disabled="!selectedPlayer || !selectedPlayer.IsOnline" :class="selectedPlayer && selectedPlayer.IsOnline ? '' : 'opacity-40 cursor-not-allowed'" class="cyber-btn px-4 py-2 text-[9px]">
+                    <i class="fas fa-shoe-prints"></i> <span x-text="t('btn_teleport')"></span>
+                </button>
+                <button @click="teleportToMe(selectedPlayer)" :disabled="!selectedPlayer || !selectedPlayer.IsOnline" :class="selectedPlayer && selectedPlayer.IsOnline ? '' : 'opacity-40 cursor-not-allowed'" class="cyber-btn px-4 py-2 text-[9px]">
+                    <i class="fas fa-magnet"></i> <span x-text="t('btn_teleport2me')"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div x-show="toastMessage" x-transition class="fixed bottom-6 right-6 z-[2000] bg-red-600 text-white font-bold text-[10px] tracking-widest uppercase px-6 py-3 border border-red-500 shadow-2xl flex items-center space-x-2" x-cloak>
+        <i class="fas fa-check-circle"></i>
+        <span x-text="toastMessage"></span>
+    </div>
+
+    <script>
+        function playerManager() {
+            return {
+                players: [],
+                search: '',
+                statusFilter: 'all',
+                sortBy: 'Username',
+                sortDesc: false,
+                selectedPlayer: null,
+                showKickModal: false,
+                showBanModal: false,
+                actionPlayer: null,
+                kickReason: 'Breaking Server Rules',
+                banReason: 'Cheating / Hack detection',
+                banDuration: '1d',
+                currentLang: localStorage.getItem('trp_lang') || 'ru',
+                isRefreshing: false,
+                toastMessage: '',
+                pageSize: 50,
+                currentPage: 1,
+
+                translations: {
+                    ru: {
+                        page_title: "АНАЛИТИКА ИГРОКОВ",
+                        page_subtitle: "База Данных & Управление Персистентностью",
+                        search_placeholder: "ПОИСК ПО STEAMID ИЛИ ИМЕНИ...",
+                        stats_total: "Всего игроков",
+                        stats_online: "Игроков онлайн",
+                        stats_avg_kd: "Средний K/D",
+                        stats_most_active: "Самый активный",
+                        col_player: "Игрок",
+                        col_steamid: "SteamID",
+                        col_country: "Страна",
+                        col_kills: "Убийства",
+                        col_kd: "K/D",
+                        col_blueprints: "Чертежи",
+                        col_playtime: "Игровое время",
+                        col_actions: "Действия",
+                        filter_all: "Все",
+                        filter_online: "В сети",
+                        filter_offline: "Вне сети",
+                        sort_name: "Имя",
+                        sort_kills: "Убийства",
+                        sort_kd: "K/D",
+                        sort_playtime: "Время",
+                        sort_blueprints: "Чертежи",
+                        sort_lastseen: "Вход",
+                        btn_copy: "Копировать SteamID",
+                        btn_details: "Подробнее",
+                        btn_kick: "Кикнуть",
+                        btn_ban: "Забанить",
+                        btn_mute: "Мут чата",
+                        btn_unmute: "Размутить",
+                        btn_wipe_bp: "Стереть чертежи",
+                        btn_teleport: "ТП к игроку",
+                        btn_teleport2me: "ТП игрока ко мне",
+                        btn_refresh_title: "Обновить данные",
+                        btn_close_title: "Закрыть страницу",
+                        modal_details_title: "Профиль игрока",
+                        modal_kick_title: "Кикнуть игрока",
+                        modal_ban_title: "Забанить игрока",
+                        reason: "Причина",
+                        duration: "Длительность",
+                        dur_1h: "1 Час",
+                        dur_1d: "1 День",
+                        dur_7d: "7 Дней",
+                        dur_perm: "Навсегда",
+                        btn_cancel: "Отмена",
+                        btn_confirm: "Подтвердить",
+                        blueprints_list: "Изученные чертежи",
+                        no_blueprints: "Нет изученных чертежей",
+                        no_players: "Игроки не найдены",
+                        no_team: "Нет команды",
+                        status_online: "В сети",
+                        status_offline: "Вне сети",
+                        survival_time: "Время выживания",
+                        ip_address: "IP Адрес",
+                        last_seen_date: "Дата последнего входа",
+                        toast_copied: "SteamID скопирован в буфер обмена!",
+                        confirm_wipe_bp: "Вы уверены, что хотите полностью стереть чертежи для {name}?",
+                        shown_prefix: "Показано",
+                        shown_middle: "-",
+                        shown_suffix: "из",
+                        page_prefix: "Стр.",
+                        page_suffix: "",
+                        btn_back: "Назад",
+                        btn_next: "Вперед"
+                    },
+                    en: {
+                        page_title: "PLAYER ANALYTICS",
+                        page_subtitle: "Database & Persistence Management",
+                        search_placeholder: "SEARCH BY STEAMID OR USERNAME...",
+                        stats_total: "Total Players",
+                        stats_online: "Players Online",
+                        stats_avg_kd: "Average K/D",
+                        stats_most_active: "Most Active",
+                        col_player: "Player",
+                        col_steamid: "SteamID",
+                        col_country: "Country",
+                        col_kills: "Kills",
+                        col_kd: "K/D",
+                        col_blueprints: "Blueprints",
+                        col_playtime: "Playtime",
+                        col_actions: "Actions",
+                        filter_all: "All",
+                        filter_online: "Online",
+                        filter_offline: "Offline",
+                        sort_name: "Name",
+                        sort_kills: "Kills",
+                        sort_kd: "K/D",
+                        sort_playtime: "Playtime",
+                        sort_blueprints: "Blueprints",
+                        sort_lastseen: "Last Seen",
+                        btn_copy: "Copy SteamID",
+                        btn_details: "Details",
+                        btn_kick: "Kick",
+                        btn_ban: "Ban",
+                        btn_mute: "Mute",
+                        btn_unmute: "Unmute",
+                        btn_wipe_bp: "Wipe Blueprints",
+                        btn_teleport: "TP to Player",
+                        btn_teleport2me: "TP Player to Me",
+                        btn_refresh_title: "Refresh database",
+                        btn_close_title: "Close page",
+                        modal_details_title: "Player Profile",
+                        modal_kick_title: "Kick Player",
+                        modal_ban_title: "Ban Player",
+                        reason: "Reason",
+                        duration: "Duration",
+                        dur_1h: "1 Hour",
+                        dur_1d: "1 Day",
+                        dur_7d: "7 Days",
+                        dur_perm: "Permanent",
+                        btn_cancel: "Cancel",
+                        btn_confirm: "Confirm",
+                        blueprints_list: "Unlocked Blueprints",
+                        no_blueprints: "No blueprints unlocked",
+                        no_players: "No players found",
+                        no_team: "No Team",
+                        status_online: "Online",
+                        status_offline: "Offline",
+                        survival_time: "Survival Time",
+                        ip_address: "IP Address",
+                        last_seen_date: "Last Seen Date",
+                        toast_copied: "SteamID copied to clipboard!",
+                        confirm_wipe_bp: "Are you sure you want to wipe all blueprints for {name}?",
+                        shown_prefix: "Showing",
+                        shown_middle: "to",
+                        shown_suffix: "of",
+                        page_prefix: "Page",
+                        page_suffix: "",
+                        btn_back: "Back",
+                        btn_next: "Next"
+                    }
+                },
+
+                t(key) {
+                    return this.translations[this.currentLang][key] || key;
+                },
+
+                setLang(lang) {
+                    this.currentLang = lang;
+                    localStorage.setItem('trp_lang', lang);
+                },
+
+                onDrag(e) {
+                    if (e.target.closest('button, input, select, textarea, .cyber-btn, [onclick], [x-on\\:click], [\\@click]')) return;
+                    window.chrome?.webview?.postMessage({ action: "drag" });
+                },
+
+                init() {
+                    document.body.classList.add('fade-in');
+                    this.refresh();
+
+                    if (window.chrome?.webview) {
+                        window.chrome.webview.addEventListener('message', (e) => {
+                            const data = e.data;
+                            if (data.type === 'language_updated') {
+                                this.currentLang = data.lang;
+                                localStorage.setItem('trp_lang', data.lang);
+                            }
+                            if (data.type === 'player_list_update') {
+                                const rawPlayers = JSON.parse(data.payload);
+                                const seen = new Set();
+                                this.players = rawPlayers.filter(p => {
+                                    const id = p.SteamID ? p.SteamID.toString() : '';
+                                    if (!id || seen.has(id)) return false;
+                                    seen.add(id);
+                                    return true;
+                                });
+                                this.isRefreshing = false;
+                            }
+                        });
+                    }
+
+                    // Reset pagination page on filter/search change
+                    this.$watch('search', () => this.currentPage = 1);
+                    this.$watch('statusFilter', () => this.currentPage = 1);
+                    this.$watch('sortBy', () => this.currentPage = 1);
+                    this.$watch('sortDesc', () => this.currentPage = 1);
+                },
+
+                refresh() {
+                    this.isRefreshing = true;
+                    window.chrome?.webview?.postMessage({ action: 'get_player_list' });
+                    // Safety timeout to reset spinner if bridge fails
+                    setTimeout(() => { this.isRefreshing = false; }, 8000);
+                },
+
+                getFilteredAndSortedPlayers() {
+                    let result = this.players.filter(p => {
+                        const searchStr = this.search.toLowerCase();
+                        const matchesSearch = p.Username.toLowerCase().includes(searchStr) || 
+                                              p.SteamID.toString().includes(searchStr);
+                                              
+                        let matchesFilter = true;
+                        if (this.statusFilter === 'online') {
+                            matchesFilter = p.IsOnline;
+                        } else if (this.statusFilter === 'offline') {
+                            matchesFilter = !p.IsOnline;
+                        }
+                        
+                        return matchesSearch && matchesFilter;
+                    });
+                    
+                    result.sort((a, b) => {
+                        let valA = a[this.sortBy];
+                        let valB = b[this.sortBy];
+                        
+                        if (this.sortBy === 'LastSeen') {
+                            valA = new Date(a.LastSeen).getTime();
+                            valB = new Date(b.LastSeen).getTime();
+                        }
+                        
+                        // Parse values to float if numbers to avoid lexical sorting
+                        if (this.sortBy === 'KD' || this.sortBy === 'Kills' || this.sortBy === 'PlayTimeSeconds' || this.sortBy === 'BlueprintsCount') {
+                            valA = parseFloat(valA) || 0;
+                            valB = parseFloat(valB) || 0;
+                        }
+                        
+                        if (valA < valB) return this.sortDesc ? 1 : -1;
+                        if (valA > valB) return this.sortDesc ? -1 : 1;
+                        return 0;
+                    });
+                    
+                    return result;
+                },
+
+                pageCount() {
+                    return Math.ceil(this.getFilteredAndSortedPlayers().length / this.pageSize);
+                },
+
+                getPaginatedPlayers() {
+                    const start = (this.currentPage - 1) * this.pageSize;
+                    return this.getFilteredAndSortedPlayers().slice(start, start + this.pageSize);
+                },
+
+                avgKD() {
+                    if (this.players.length === 0) return '0.00';
+                    let totalK = 0;
+                    let totalD = 0;
+                    this.players.forEach(p => {
+                        totalK += p.Kills || 0;
+                        totalD += p.Deaths || 0;
+                    });
+                    return totalD === 0 ? totalK.toFixed(2) : (totalK / totalD).toFixed(2);
+                },
+
+                mostActivePlayerName() {
+                    if (this.players.length === 0) return 'N/A';
+                    let best = this.players[0];
+                    this.players.forEach(p => {
+                        if ((p.PlayTimeSeconds || 0) > (best.PlayTimeSeconds || 0)) {
+                            best = p;
+                        }
+                    });
+                    return best.Username;
+                },
+
+                getFlagUrl(code) {
+                    if (!code || code === 'Unknown' || code === 'N/A') return '';
+                    return `https://flagcdn.com/16x12/${code.toLowerCase()}.png`;
+                },
+
+                copyId(id) {
+                    navigator.clipboard.writeText(id.toString());
+                    this.showToast(this.t('toast_copied'));
+                },
+
+                showToast(msg) {
+                    this.toastMessage = msg;
+                    setTimeout(() => { this.toastMessage = ''; }, 3000);
+                },
+
+                openKick(player) {
+                    this.actionPlayer = player;
+                    this.kickReason = this.currentLang === 'ru' ? 'Нарушение правил сервера' : 'Breaking Server Rules';
+                    this.showKickModal = true;
+                },
+
+                confirmKick() {
+                    if (!this.actionPlayer) return;
+                    window.chrome?.webview?.postMessage({
+                        action: 'player_kick',
+                        steamId: this.actionPlayer.SteamID.toString(),
+                        reason: this.kickReason
+                    });
+                    this.showKickModal = false;
+                    this.selectedPlayer = null;
+                },
+
+                openBan(player) {
+                    this.actionPlayer = player;
+                    this.banReason = this.currentLang === 'ru' ? 'Использование читов / запрещенного ПО' : 'Cheating / Hack detection';
+                    this.banDuration = '1d';
+                    this.showBanModal = true;
+                },
+
+                confirmBan() {
+                    if (!this.actionPlayer) return;
+                    window.chrome?.webview?.postMessage({
+                        action: 'player_ban',
+                        steamId: this.actionPlayer.SteamID.toString(),
+                        reason: this.banReason,
+                        duration: this.banDuration
+                    });
+                    this.showBanModal = false;
+                    this.selectedPlayer = null;
+                },
+
+                mutePlayer(player) {
+                    window.chrome?.webview?.postMessage({
+                        action: 'mute',
+                        steamId: player.SteamID.toString(),
+                        extra: ''
+                    });
+                },
+
+                unmutePlayer(player) {
+                    window.chrome?.webview?.postMessage({
+                        action: 'unmute',
+                        steamId: player.SteamID.toString(),
+                        extra: ''
+                    });
+                },
+
+                wipeBlueprints(player) {
+                    const confirmMsg = this.t('confirm_wipe_bp').replace('{name}', player.Username);
+                    if (confirm(confirmMsg)) {
+                        window.chrome?.webview?.postMessage({
+                            action: 'global.playerbpwipe',
+                            steamId: player.SteamID.toString(),
+                            extra: ''
+                        });
+                    }
+                },
+
+                teleportTo(player) {
+                    window.chrome?.webview?.postMessage({
+                        action: 'teleport',
+                        steamId: player.SteamID.toString(),
+                        extra: ''
+                    });
+                },
+
+                teleportToMe(player) {
+                    window.chrome?.webview?.postMessage({
+                        action: 'teleport2me',
+                        steamId: player.SteamID.toString(),
+                        extra: ''
+                    });
+                },
+
+                navigateTo(url) {
+                    if (url === 'Dashboard.html') {
+                        window.parent.postMessage({ action: 'close_subpage' }, '*');
+                    } else {
+                        document.body.classList.remove('fade-in');
+                        document.body.classList.add('fade-out');
+                        setTimeout(() => location.href = url, 300);
+                    }
+                },
+
+                formatDate(dateStr) {
+                    if (!dateStr) return 'N/A';
+                    const d = new Date(dateStr);
+                    if (isNaN(d.getTime())) return dateStr;
+                    return d.toLocaleDateString(this.currentLang === 'ru' ? 'ru-RU' : 'en-US') + ' ' + d.toLocaleTimeString(this.currentLang === 'ru' ? 'ru-RU' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+                },
+
+                formatSurvivalTime(secs) {
+                    if (!secs) return '0m';
+                    const mins = Math.floor(secs / 60);
+                    if (mins < 60) return mins + 'm';
+                    const hrs = Math.floor(mins / 60);
+                    const remainingMins = mins % 60;
+                    return hrs + 'h ' + remainingMins + 'm';
+                }
+            }
+        }
+    </script>
+</body>
+</html>

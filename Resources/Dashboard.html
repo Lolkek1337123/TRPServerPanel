@@ -1,0 +1,2830 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+
+<head>
+    <script defer src="js/alpine.min.js"></script>
+    <meta charset="UTF-8">
+    <script>
+        if (window.self !== window.top) {
+            window.parent.postMessage({ action: "close_subpage" }, "*");
+            window.location.href = "about:blank";
+        }
+    </script>
+
+    
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TRP SERVER PANEL V5.0 (HYBRID)</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/chart.min.js"></script>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="theme.css">
+    <style>
+        .stat-card-new canvas {
+            filter: drop-shadow(0 0 5px rgba(255, 0, 0, 0.3));
+            pointer-events: none;
+        }
+        .sparkline-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        #console-output {
+            -webkit-user-select: text !important;
+            user-select: text !important;
+        }
+        body {
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 10% 10%, rgba(255, 0, 0, 0.08) 0%, transparent 45%),
+                radial-gradient(circle at 90% 90%, rgba(255, 0, 0, 0.04) 0%, transparent 45%),
+                linear-gradient(180deg, rgba(2, 2, 4, 0.7) 0%, rgba(8, 8, 12, 0.95) 100%),
+                url("img/bg2.png");
+            background-size: cover;
+            background-position: center top;
+            background-repeat: no-repeat;
+            pointer-events: none;
+            z-index: -2;
+            animation: breathingGlow 12s infinite alternate ease-in-out;
+        }
+        body.fade-in {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        body.fade-out {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+    </style>
+
+</head>
+
+<body class="flex flex-col h-screen w-screen p-4 space-y-4">
+
+    <!-- 1. FULL-STACK HEADER (V6.0) -->
+
+    <header class="h-20 flex-shrink-0 glass rounded-none grid grid-cols-3 items-center px-8 border-b border-red-500/20 shadow-2xl cursor-default relative z-[100]" onmousedown="onDrag(event)">
+
+        <!-- LEFT: Navigation Actions -->
+
+        <div class="flex items-center space-x-2">
+
+            <div class="cyber-btn header-btn" onclick="navigateTo('Install.html')" title="Открыть мастер установки" data-i18n-title="tooltip_install">
+
+                <i class="fas fa-plus-circle"></i> <span data-i18n="header_install">Установить сервер</span>
+
+            </div>
+
+            <div class="cyber-btn header-btn" onclick="navigateTo('Marketplace.html')" title="Открыть маркетплейс" data-i18n-title="tooltip_market">
+                <i class="fas fa-shopping-cart"></i> <span data-i18n="header_market">Маркетплейс</span>
+            </div>
+
+            <div class="cyber-btn header-btn" onclick="navigateTo('FileExplorer.html')" title="Проводник файлов" data-i18n-title="tooltip_files">
+                <i class="fas fa-folder-open"></i> <span data-i18n="header_files">Проводник</span>
+            </div>
+
+            <div class="cyber-btn header-btn" onclick="navigateTo('Backups.html')" title="Резервные копии" data-i18n-title="tooltip_backups">
+                <i class="fas fa-archive"></i> <span data-i18n="header_backups">Бэкапы</span>
+            </div>
+
+            <div class="cyber-btn header-btn" onclick="navigateTo('About.html')" title="Настройки и Помощь" data-i18n-title="tooltip_help">
+
+                <i class="fas fa-cog"></i> <span data-i18n="header_help">Настройки и помощь</span>
+
+            </div>
+
+        </div>
+
+        <!-- CENTER: Branding & Identity -->
+
+        <div class="flex flex-col items-center text-center relative pointer-events-auto px-4">
+
+            <div id="server-menu-trigger" class="flex items-center space-x-2 select-none cursor-pointer group no-drag" onclick="toggleServerMenu(event)">
+
+                <h1 class="text-2xl font-black text-primary italic tracking-tighter leading-none" data-i18n="app_title">TRP SERVER PANEL</h1>
+
+                <div class="p-1 hover:bg-white/5 rounded-none transition-colors">
+
+                    <i class="fas fa-chevron-down text-red-500 text-[10px] transition-transform duration-300" id="server-menu-chevron"></i>
+
+                </div>
+
+            </div>
+
+            <div class="flex items-center mt-1.5 space-x-3">
+
+                <span id="header-server-name" class="text-[8px] font-bold text-[var(--primary-color)] tracking-[0.2em] uppercase">MANAGING: NONE</span>
+
+                <span class="text-[8px] font-bold text-gray-500 tracking-[0.2em] uppercase" data-i18n="header_desc">Hyper-Performance Orchestrator</span>
+
+            </div>
+
+        </div>
+
+        <div class="flex items-center justify-end space-x-6">
+
+            <!-- AI Agent Status -->
+
+            <div class="flex items-center space-x-2">
+
+                <div class="flex items-center space-x-2 no-drag px-3 py-1 bg-white/5 rounded-none border border-white/10" id="agent-status-container" title="Статус ИИ-агента (Gemini Bridge)">
+
+                    <div class="w-2 h-2 rounded-none bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]" id="agent-dot"></div>
+
+                    <span class="text-[9px] font-black tracking-widest text-white/50 uppercase" id="agent-text">AGENT: READY</span>
+
+                </div>
+
+                <!-- TRP Shield Trigger -->
+
+                <button onclick="openSecurityAudit()" class="w-8 h-8 rounded-none bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500/20 hover:scale-110 active:scale-95 transition-all flex items-center justify-center no-drag group relative" title="TRP AI Shield: Аудит безопасности">
+
+                    <i class="fas fa-shield-alt text-xs"></i>
+
+                    <div class="absolute -inset-1 bg-red-500/20 rounded-none blur opacity-0 group-hover:opacity-100 transition-opacity"></div>
+
+                </button>
+
+            </div>
+
+            <!-- Low Spec Mode Toggle -->
+
+            <button id="btn-lowspec" onclick="toggleLowSpecMode()" class="w-8 h-8 rounded-none bg-black/40 border border-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors no-drag ml-2" title="Low Spec Mode" data-i18n-title="tooltip_lowspec">
+
+                <i class="fas fa-bolt text-[10px]"></i>
+
+            </button>
+
+            <!-- Language Switcher -->
+
+            <div class="lang-toggle no-drag ml-2">
+
+                <div onclick="setLanguage('ru')" id="lang-ru" class="lang-opt">RU</div>
+
+                <div onclick="setLanguage('en')" id="lang-en" class="lang-opt">EN</div>
+
+            </div>
+
+            <!-- OS Buttons -->
+
+            <div class="flex space-x-2 no-drag">
+
+                <button class="w-8 h-8 rounded-none cyber-btn text-[10px] text-gray-600 hover:text-white" onclick="safePostMessage({action:'minimize'})" title="Свернуть" data-i18n-title="tooltip_minimize">
+
+                    <i class="fas fa-minus"></i>
+
+                </button>
+
+                <button class="w-8 h-8 rounded-none cyber-btn text-[10px] text-gray-600 hover:text-white" onclick="safePostMessage({action:'maximize'})" title="Развернуть" data-i18n-title="tooltip_maximize">
+
+                    <i class="far fa-square"></i>
+
+                </button>
+
+                 <button class="w-8 h-8 rounded-none bg-red-600/10 border border-red-500/20 text-red-500 flex items-center justify-center cursor-pointer hover:bg-red-600 hover:text-white transition-all text-[10px]" onmousedown="event.stopPropagation()" onclick="safePostMessage({action:'close'})" title="Закрыть" data-i18n-title="tooltip_close">
+
+                    <i class="fas fa-times"></i>
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </header>
+
+    <!-- 3. MAIN BODY -->
+
+    <main class="flex-1 flex space-x-4 overflow-hidden">
+
+        <!-- LEFT: Control Panel (420px) -->
+
+        <!-- LEFT PANEL: Sidebar (Optimized v5.3) -->
+
+        <aside class="w-[420px] flex flex-col space-y-3 overflow-y-auto pr-3 custom-scrollbar no-drag scrollbar-hide" style="pointer-events: none !important;">
+
+            <!-- COMPACT CORE STATUS (V8.0) -->
+
+            <section class="flex-shrink-0 glass rounded-none p-4 border-red-500/10 relative group" style="pointer-events: auto !important;">
+
+                <div class="flex items-center space-x-4">
+
+                    <div class="flex flex-col flex-1">
+
+                        <div class="flex items-center justify-between overflow-hidden">
+
+                             <span id="sidebar-server-name" class="text-[16px] font-black text-primary italic tracking-tighter whitespace-nowrap overflow-visible min-w-0 pr-4">NONE</span>
+
+                             <div id="status-badge-container" class="status-badge status-stopped-badge flex-shrink-0">
+
+                                 <i class="fas fa-circle text-[4px] mr-1.5 animate-pulse"></i> 
+
+                                 <span id="status-text" data-i18n="status_stopped">Выключен</span>
+
+                             </div>
+
+                        </div>
+
+                        <div class="flex items-center mt-1 space-x-2">
+
+                            <i class="fas fa-clock text-[8px] text-gray-600"></i>
+
+                            <span id="sidebar-uptime" class="text-[10px] rust-lcd text-gray-500 font-bold">00:00:00</span>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+            <!-- ICONIC OPERATIONAL GRID (NEW) -->
+
+            <section class="flex-shrink-0 glass rounded-none p-4 flex flex-col items-center" style="pointer-events: auto !important;">
+
+                <div class="grid grid-cols-4 gap-3 w-full">
+
+                    <button class="h-14 rounded-none bg-red-600 border border-red-500/30 text-white shadow-[0_0_20px_rgba(255,0,0,0.2)] hover:bg-red-500 transition-all group relative overflow-hidden" onclick="sendCommand('StartServer')" title="Start Engine" data-i18n-title="btn_start">
+
+                        <i class="fas fa-play text-lg group-hover:scale-110 transition-transform"></i>
+
+                    </button>
+
+                    <button class="h-14 rounded-none bg-white/5 border border-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-all group relative" onclick="sendCommand('StopServer')" title="Terminate Process" data-i18n-title="btn_stop">
+
+                        <i class="fas fa-power-off text-lg group-hover:scale-110 transition-transform"></i>
+
+                    </button>
+
+                    <button class="h-14 rounded-none bg-white/5 border border-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-all group relative" onclick="sendCommand('RestartServer')" title="Sync/Reboot" data-i18n-title="btn_restart">
+
+                        <i class="fas fa-sync text-lg group-hover:scale-110 transition-transform"></i>
+
+                    </button>
+
+                    <button class="h-14 rounded-none bg-white/5 border border-white/5 text-gray-400 hover:bg-red-600/20 hover:text-red-500 hover:border-red-500/30 transition-all group relative" onclick="confirmWipe()" title="Full Wipe" data-i18n-title="btn_wipe">
+
+                        <i class="fas fa-trash-alt text-lg group-hover:scale-110 transition-transform"></i>
+
+                    </button>
+
+                </div>
+
+            </section>
+
+            <!-- TELEMETRY GRID (V8.0) -->
+
+            <section class="flex flex-col space-y-2" style="pointer-events: auto !important;" x-data="telemetryManager()">
+
+                <!-- PLAYERS -->
+
+                <div class="stat-card-new">
+
+                    <div class="flex items-center space-x-3">
+
+                        <div class="w-8 h-8 rounded-none bg-red-500/10 flex items-center justify-center text-red-500">
+
+                            <i class="fas fa-users text-xs"></i>
+
+                        </div>
+
+                        <div class="flex flex-col">
+
+                            <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest" data-i18n="stat_players">Users</span>
+
+                            <span class="text-xs font-black rust-lcd text-white leading-none" id="stat-players">0/0</span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="flex-1 mx-4 h-8 bg-white/[0.02] rounded-none relative overflow-hidden border border-white/5">
+
+                        <canvas id="chart-players" class="sparkline-canvas"></canvas>
+
+                    </div>
+
+                </div>
+
+                <!-- FPS -->
+
+                <div class="stat-card-new">
+
+                    <div class="flex items-center space-x-3">
+
+                        <div class="w-8 h-8 rounded-none bg-orange-500/10 flex items-center justify-center text-orange-500">
+
+                            <i class="fas fa-tachometer-alt text-xs"></i>
+
+                        </div>
+
+                        <div class="flex flex-col">
+
+                            <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest" data-i18n="stat_fps">FPS</span>
+
+                            <span class="text-xs font-black rust-lcd text-white leading-none" id="stat-fps">0</span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="flex-1 mx-4 h-8 bg-white/[0.02] rounded-none relative overflow-hidden border border-white/5">
+
+                        <canvas id="chart-fps" class="sparkline-canvas"></canvas>
+
+                    </div>
+
+                </div>
+
+                <!-- ENTITIES -->
+
+                <div class="stat-card-new">
+
+                    <div class="flex items-center space-x-3">
+
+                        <div class="w-8 h-8 rounded-none bg-blue-500/10 flex items-center justify-center text-blue-500">
+
+                            <i class="fas fa-microchip text-xs"></i>
+
+                        </div>
+
+                        <div class="flex flex-col">
+
+                            <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest" data-i18n="stat_entities">Entity</span>
+
+                            <span class="text-xs font-black rust-lcd text-white leading-none" id="stat-entities">0</span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="flex-1 mx-4 h-8 bg-white/[0.02] rounded-none relative overflow-hidden border border-white/5">
+
+                        <canvas id="chart-entities" class="sparkline-canvas"></canvas>
+
+                    </div>
+
+                </div>
+
+                <!-- PING -->
+
+                <div class="stat-card-new">
+
+                    <div class="flex items-center space-x-3">
+
+                        <div class="w-8 h-8 rounded-none bg-green-500/10 flex items-center justify-center text-green-500">
+
+                            <i class="fas fa-signal text-xs"></i>
+
+                        </div>
+
+                        <div class="flex flex-col">
+
+                            <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest" data-i18n="stat_ping">Ping</span>
+
+                            <span class="text-xs font-black rust-lcd text-green-500 leading-none" id="stat-ping">0ms</span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="flex-1 mx-4 h-8 bg-white/[0.02] rounded-none relative overflow-hidden border border-white/5">
+
+                        <canvas id="chart-ping" class="sparkline-canvas"></canvas>
+
+                    </div>
+
+                </div>
+
+                <!-- CPU -->
+
+                <div class="stat-card-new">
+
+                    <div class="flex items-center space-x-3">
+
+                        <div class="w-8 h-8 rounded-none bg-yellow-500/10 flex items-center justify-center text-yellow-500">
+
+                            <i class="fas fa-microchip text-xs"></i>
+
+                        </div>
+
+                        <div class="flex flex-col">
+
+                            <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest">CPU</span>
+
+                            <span class="text-xs font-black rust-lcd text-white leading-none" id="stat-cpu" x-text="cpu + '%'">0%</span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="flex-1 mx-4 h-8 bg-white/[0.02] rounded-none relative overflow-hidden border border-white/5">
+
+                        <canvas id="chart-cpu-new"></canvas>
+
+                    </div>
+
+                </div>
+
+                <!-- RAM -->
+
+                <div class="stat-card-new">
+
+                    <div class="flex items-center space-x-3">
+
+                        <div class="w-8 h-8 rounded-none bg-cyan-500/10 flex items-center justify-center text-cyan-500">
+
+                            <i class="fas fa-memory text-xs"></i>
+
+                        </div>
+
+                        <div class="flex flex-col">
+
+                            <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest">RAM</span>
+
+                            <span class="text-xs font-black rust-lcd text-white leading-none" id="stat-ram" x-text="ram + ' GB'">0.0 GB</span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="flex-1 mx-4 h-8 bg-white/[0.02] rounded-none relative overflow-hidden border border-white/5">
+
+                        <canvas id="chart-ram-new"></canvas>
+
+                    </div>
+
+                </div>
+
+                <!-- NETWORK -->
+
+                <div class="stat-card-new">
+
+                    <div class="flex items-center space-x-3">
+
+                        <div class="w-8 h-8 rounded-none bg-purple-500/10 flex items-center justify-center text-purple-500">
+
+                            <i class="fas fa-network-wired text-xs"></i>
+
+                        </div>
+
+                        <div class="flex flex-col">
+
+                            <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest">Network</span>
+
+                            <span class="text-xs font-black rust-lcd text-white leading-none" x-text="net">0.0 MB/s</span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="flex-1 mx-4 h-8 bg-white/[0.02] rounded-none relative overflow-hidden border border-white/5">
+
+                        <canvas id="chart-net-new"></canvas>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+            <!-- SYSTEM NAVIGATION (V8.0) -->
+
+            <section class="flex flex-col space-y-2" style="pointer-events: auto !important;">
+
+                <div class="nav-btn-wide" onclick="navigateTo('Settings.html')">
+
+                    <div class="icon-box text-blue-500"><i class="fas fa-sliders-h text-xs"></i></div>
+
+                    <div class="ml-4 flex flex-col">
+
+                        <span class="text-[10px] font-black text-white uppercase" data-i18n="nav_settings">Настройки</span>
+
+                        <span class="text-[7px] text-gray-500 font-bold uppercase tracking-tighter" data-i18n="desc_settings">Конфигурация параметров сервера</span>
+
+                    </div>
+
+                </div>
+
+                <div class="nav-btn-wide" onclick="navigateTo('Plugins.html')">
+
+                    <div class="icon-box text-purple-500"><i class="fas fa-puzzle-piece text-xs"></i></div>
+
+                    <div class="ml-4 flex flex-col">
+
+                        <span class="text-[10px] font-black text-white uppercase" data-i18n="nav_plugins">Плагины</span>
+
+                        <span class="text-[7px] text-gray-500 font-bold uppercase tracking-tighter" data-i18n="desc_plugins">Управление модами и расширениями</span>
+
+                    </div>
+
+                </div>
+
+                <div class="nav-btn-wide" onclick="navigateTo('Players.html')">
+
+                    <div class="icon-box text-green-500"><i class="fas fa-user-group text-xs"></i></div>
+
+                    <div class="ml-4 flex flex-col">
+
+                        <span class="text-[10px] font-black text-white uppercase" data-i18n="nav_players">Игроки</span>
+
+                        <span class="text-[7px] text-gray-500 font-bold uppercase tracking-tighter" data-i18n="desc_players">Контроль онлайна и статистика</span>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+        </aside>
+
+        <!-- RIGHT PART: Console & Subpages (SPA) -->
+        <div id="right-content-wrapper" class="flex-grow flex-1 flex flex-col overflow-hidden relative">
+
+            <!-- Console View -->
+            <div id="console-view" class="flex-1 glass rounded-none flex flex-col bg-black/40 overflow-hidden shadow-inner border border-red-500/5">
+
+                <!-- Console Header/Filters -->
+
+                    <div class="h-12 border-b border-red-500/10 flex px-6 items-center space-x-2">
+
+                        <div class="filter-tab active" onclick="switchFilter('all', this)" title="Все логи" data-i18n="filter_all">ALL LOGS</div>
+
+                        <div class="filter-tab" onclick="switchFilter('system', this)" title="Системные" data-i18n="filter_system">SYSTEM</div>
+
+                        <div class="filter-tab" onclick="switchFilter('chat', this)" title="Чат" data-i18n="filter_chat">CHAT</div>
+
+                        <div class="filter-tab" onclick="switchFilter('warning', this)" title="Предупреждения" data-i18n="filter_warning">WARNING</div>
+
+                        <div class="filter-tab" onclick="switchFilter('rcon', this)" title="RCON" data-i18n="filter_rcon">RCON</div>
+
+                        <div class="filter-tab" onclick="switchFilter('oxide', this)" title="Моды" data-i18n="filter_mods">MODS</div>
+
+                        <div class="flex-1"></div>
+
+                        <!-- CONTROL TOOLBAR -->
+
+                        <div class="flex items-center space-x-4 mr-4">
+
+                            <div id="autoscroll-toggle" onclick="toggleAutoScroll()" class="flex items-center space-x-2 cursor-pointer group" title="Переключить автопрокрутку">
+
+                                <div class="w-7 h-3.5 bg-red-600 rounded-none relative transition-all">
+
+                                    <div id="autoscroll-dot" class="w-2.5 h-2.5 bg-white rounded-none absolute top-0.5 right-0.5 transition-all"></div>
+
+                                </div>
+
+                                <span class="text-[8px] font-black text-white/40 uppercase group-hover:text-white transition-colors" data-i18n="autoscroll">Auto-scroll</span>
+
+                            </div>
+
+                            <button id="btn-open-commands" onclick="openModal('modal-commands')" class="flex items-center text-[8px] font-black text-gray-500 hover:text-white uppercase transition-colors" data-i18n-title="tooltip_commands">
+
+                                <i class="fas fa-book-open mr-2 text-[10px]"></i> <span data-i18n="commands">Commands</span>
+
+                            </button>
+
+                            <button id="btn-clear-console" onclick="clearConsole()" class="flex items-center text-[8px] font-black text-gray-500 hover:text-red-500 uppercase transition-colors" data-i18n-title="tooltip_clear">
+
+                                <i class="fas fa-trash-alt mr-2 text-[10px]"></i> <span data-i18n="clear">Clear</span>
+
+                            </button>
+
+                        </div>
+
+                        <div class="text-[9px] text-gray-600 font-black uppercase flex items-center">
+
+                            <i class="fas fa-circle text-red-500 text-[5px] mr-2 animate-pulse"></i> <span data-i18n="status_active">Real-time Active</span>
+
+                        </div>
+
+                    </div>
+
+                <!-- Console Content -->
+
+                <div id="console-output" class="flex-1 p-8 overflow-y-auto text-[11px] font-mono leading-relaxed space-y-1.5 scroll-smooth custom-scrollbar bg-black/20">
+
+                    <!-- Real logs will appear here -->
+
+                </div>
+
+                <!-- Quick Commands Bar (v16.6) -->
+
+                <div class="h-10 bg-white/2 border-t border-red-500/5 px-6 flex items-center space-x-2">
+
+                    <span class="text-[8px] font-black text-gray-600 uppercase tracking-widest mr-2">Quick Actions:</span>
+
+                    <button onclick="sendDirectCommand('status')" class="px-3 py-1 rounded-none bg-red-500/10 border border-red-500/20 text-[9px] font-black text-red-500 hover:bg-red-500/20 transition-all uppercase">Status</button>
+
+                    <button onclick="sendDirectCommand('players')" class="px-3 py-1 rounded-none bg-white/5 border border-white/10 text-[9px] font-black text-gray-400 hover:text-white transition-all uppercase">Players</button>
+
+                    <button onclick="sendDirectCommand('users()')" class="px-3 py-1 rounded-none bg-white/5 border border-white/10 text-[9px] font-black text-gray-400 hover:text-white transition-all uppercase">Users()</button>
+
+                    <button onclick="sendDirectCommand('global.banlist')" class="px-3 py-1 rounded-none bg-white/5 border border-white/10 text-[9px] font-black text-gray-400 hover:text-white transition-all uppercase">Banlist</button>
+
+                    <button onclick="sendDirectCommand('fps')" class="px-3 py-1 rounded-none bg-white/5 border border-white/10 text-[9px] font-black text-gray-400 hover:text-white transition-all uppercase">FPS</button>
+
+                </div>
+
+                <!-- Console Input -->
+
+                <div class="h-14 border-t border-red-500/10 px-8 flex items-center bg-black/60 group">
+
+                    <div class="relative group w-full">
+
+                        <button id="ai-mode-toggle" onclick="toggleConsoleMode()" 
+
+                                class="absolute left-1 top-1 w-10 h-10 rounded-none bg-white/5 border border-white/5 flex items-center justify-center text-white/30 hover:bg-white/10 hover:text-white transition-all z-10" 
+
+                                title="Toggle AI Mode" data-i18n-title="tooltip_ai_mode">
+
+                            <i class="fas fa-brain text-[14px]"></i>
+
+                        </button>
+
+                        <div id="ai-mode-indicator" class="absolute left-14 top-1/2 -translate-y-1/2 flex items-center space-x-2 hidden z-10 pointer-events-none">
+
+                             <div class="w-1.5 h-1.5 rounded-none bg-red-500 animate-pulse"></div>
+
+                             <span class="text-[9px] font-black text-red-500 uppercase tracking-wider" data-i18n="ai_active">AI ACTIVE</span>
+
+                        </div>
+
+                        <input id="console-input" type="text" 
+
+                               class="w-full h-12 bg-black/40 border border-white/5 rounded-none px-4 text-xs font-medium text-white focus:outline-none focus:border-red-500/50 transition-all outline-none pl-14" 
+
+                               data-i18n-placeholder="placeholder_console"
+
+                               onkeydown="if(event.key==='Enter') sendConsoleCommand()">
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- Subpage Frame View -->
+            <div id="iframe-view" class="hidden flex-1 glass rounded-none flex flex-col bg-black/40 overflow-hidden shadow-inner border border-red-500/5">
+                <iframe id="content-iframe" class="flex-grow flex-1 w-full h-full border-none bg-transparent" src="about:blank"></iframe>
+            </div>
+
+        </div>
+
+    </main>
+
+    <footer class="h-8 flex-shrink-0 glass-dark border-t border-white/5 flex items-center justify-between px-4 z-50">
+
+        <div class="flex items-center space-x-4">
+
+            <button onclick="navigateTo('Dashboard.html')" class="flex items-center space-x-2 px-3 py-1 bg-red-600/10 border border-red-500/20 rounded-none hover:bg-red-600 hover:text-white transition-all group active">
+
+                <i class="fas fa-terminal text-[10px] text-red-500 group-hover:text-white"></i>
+
+                <span class="text-[9px] font-black uppercase tracking-widest">SERVER CONSOLE</span>
+
+            </button>
+
+            <button onclick="navigateTo('AppLogs.html')" class="flex items-center space-x-2 px-3 py-1 bg-blue-600/10 border border-blue-500/20 rounded-none hover:bg-blue-600 hover:text-white transition-all group">
+                <i class="fas fa-microchip text-[10px] text-blue-500 group-hover:text-white"></i>
+                <span class="text-[9px] font-black uppercase tracking-widest">APP DIAGNOSTICS</span>
+            </button>
+
+            <button onclick="runAudit()" class="flex items-center space-x-2 px-3 py-1 bg-yellow-600/10 border border-yellow-500/20 rounded-none hover:bg-yellow-600 hover:text-white transition-all group">
+                <i class="fas fa-shield-alt text-[10px] text-yellow-500 group-hover:text-white"></i>
+                <span class="text-[9px] font-black uppercase tracking-widest">AI SENTINEL AUDIT</span>
+            </button>
+
+            <div class="h-3 w-[1px] bg-white/10"></div>
+
+            <div class="flex items-center space-x-2">
+
+                <div class="w-1 h-1 rounded-none bg-red-500 animate-pulse"></div>
+
+                <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest">Session Active</span>
+
+            </div>
+
+            <div class="h-3 w-[1px] bg-white/10"></div>
+
+            <div class="flex items-center space-x-2">
+
+                <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest" data-i18n="footer_uptime">Uptime</span>
+
+                <span id="footer-app-uptime" class="text-[9px] rust-lcd text-red-500 font-black">00:00:00</span>
+
+            </div>
+
+        </div>
+
+        <div class="flex items-center space-x-6">
+
+            <div class="flex flex-col items-end mr-2">
+
+                <span id="panel-ram-usage" class="text-[9px] font-black text-blue-400 leading-none">0.0 GB</span>
+
+                <span class="text-[6px] text-white/20 font-black uppercase tracking-widest mt-0.5">Panel Memory</span>
+
+            </div>
+
+            <div class="h-3 w-[1px] bg-white/10"></div>
+
+            <span class="text-[8px] font-black text-gray-400 opacity-30 uppercase tracking-[0.2em]">TRP Orchestrator v5.0.3</span>
+
+            <div class="h-3 w-[1px] bg-white/10"></div>
+
+            <span class="text-[7px] font-black text-gray-600 uppercase tracking-widest">© 2026 TEAM RUST PLUGINS</span>
+
+        </div>
+
+    </footer>
+
+    <!-- MODALS -->
+
+    <div id="modal-overlay" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-xl hidden opacity-0 transition-all duration-300 no-drag" onmousedown="closeModal()">
+
+        <div id="modal-commands" onmousedown="event.stopPropagation()" class="hidden glass w-full max-w-5xl rounded-none p-10 flex flex-col border border-red-500/20 shadow-[0_0_80px_rgba(255,0,0,0.15)]">
+
+            <div class="flex justify-between items-center mb-8">
+
+                <div>
+
+                    <h2 class="text-2xl font-black text-primary uppercase italic tracking-tighter" data-i18n="modal_commands_title">Command Repository</h2>
+
+                    <div class="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-1" data-i18n="modal_commands_sub">Rust & Oxide Database</div>
+
+                </div>
+
+                <div class="flex items-center space-x-6">
+
+                    <div class="relative w-72">
+
+                        <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 text-xs"></i>
+
+                        <input type="text" id="command-search" onkeyup="filterCommands()" placeholder="Search..." 
+
+                               class="w-full h-10 bg-white/5 border border-white/5 rounded-none pl-12 pr-4 text-[11px] font-black uppercase text-white placeholder:text-gray-700 outline-none focus:border-red-500/30 transition-all">
+
+                    </div>
+
+                    <button onclick="closeModal()" class="text-gray-500 hover:text-white text-xl"><i class="fas fa-times"></i></button>
+
+                </div>
+
+            </div>
+
+            <div class="grid grid-cols-4 gap-4 overflow-y-auto max-h-[550px] pr-4 custom-scrollbar" id="commands-list"></div>
+
+        </div>
+
+        <!-- NEW EXIT CONFIRMATION MODAL -->
+        <div id="modal-exit-confirm" onmousedown="event.stopPropagation()" class="hidden glass w-full max-w-md rounded-none p-8 flex flex-col border border-red-500/20 shadow-[0_0_80px_rgba(255,0,0,0.15)] bg-[#0C0C0C]/90">
+            <div class="flex items-center space-x-3 mb-6 border-b border-white/5 pb-4">
+                <i class="fas fa-exclamation-triangle text-red-500 text-xl"></i>
+                <div>
+                    <h2 class="text-md font-black text-red-500 uppercase tracking-wider" data-i18n="exit_confirm_title">ПОДТВЕРЖДЕНИЕ ВЫХОДА</h2>
+                    <p class="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-0.5" data-i18n="exit_confirm_sub">Внимание: Сервер запущен</p>
+                </div>
+            </div>
+            
+            <p class="text-[11px] text-gray-300 font-medium leading-relaxed mb-6" data-i18n="exit_confirm_desc">
+                Игровой сервер Rust в данный момент запущен или запускается. Закрытие панели управления приведет к автоматическому выключению сервера. Вы действительно хотите выйти?
+            </p>
+            
+            <div class="flex space-x-3">
+                <button onclick="safePostMessage({action:'confirm_exit'})" class="flex-1 py-3 bg-red-600/10 border border-red-500/20 text-red-500 text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all" data-i18n="exit_confirm_btn_exit">
+                    Выйти и остановить
+                </button>
+                <button onclick="closeModal()" class="flex-1 py-3 bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all" data-i18n="exit_confirm_btn_cancel">
+                    Отмена
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- SCRIPT SECTION -->
+
+    <script>
+        function safePostMessage(obj) {
+            if (window.chrome && window.chrome.webview) {
+                try { window.chrome.webview.postMessage(obj); } catch (e) { }
+            }
+        }
+
+        function updateSidebarServerName(name) {
+            if (!name || name === "NONE") return;
+            const el = document.getElementById('sidebar-server-name');
+            const headerEl = document.getElementById('header-server-name');
+            if (el) el.innerText = name.toUpperCase();
+            if (headerEl) {
+                headerEl.innerText = `MANAGING: ${name.toUpperCase()}`;
+                headerEl.classList.remove('text-gray-500');
+                headerEl.classList.add('text-primary');
+            }
+            window.currentActiveServerName = name;
+        }
+
+        function onDrag(e) {
+            // v10.9: Only block drag on interactive elements, allow it on branding/empty space
+            if (e.target.closest('button, input, select, textarea, .no-drag, .cyber-btn, .header-btn')) return;
+            safePostMessage({ action: "drag" });
+        }
+
+        function toggleServerMenu(e) {
+            e.stopPropagation();
+            const menu = document.getElementById('server-selector-menu');
+            const chevron = document.getElementById('server-menu-chevron');
+            if (!menu || !chevron) return;
+
+            const isVisible = !menu.classList.contains('invisible');
+
+            if (!isVisible) {
+                // Fetch latest list before opening
+                safePostMessage({ action: 'get_server_list' });
+                
+                // Position menu below the trigger
+                const trigger = document.getElementById('server-menu-trigger');
+                const rect = trigger.getBoundingClientRect();
+                
+                // Robust positioning
+                let left = rect.left + rect.width / 2 - 128;
+                if (left < 10) left = 10;
+                if (left + 256 > window.innerWidth) left = window.innerWidth - 266;
+
+                menu.style.left = left + 'px';
+                menu.style.top = (rect.bottom + 10) + 'px';
+                
+                menu.classList.remove('invisible', 'opacity-0', 'translate-y-2');
+                chevron.classList.add('rotate-180');
+            } else {
+                menu.classList.add('invisible', 'opacity-0', 'translate-y-2');
+                chevron.classList.remove('rotate-180');
+            }
+        }
+
+        function renderServerList(servers, activeName) {
+            const container = document.getElementById('server-list-container');
+            if (!container) return;
+
+            let html = '';
+
+            if (!servers || servers.length === 0) {
+                html = `
+                    <div class="p-8 text-center">
+                        <i class="fas fa-server text-white/10 text-2xl mb-2"></i>
+                        <p class="text-[10px] font-black text-white/30 uppercase" data-i18n="server_list_empty">Список пуст</p>
+                        <p class="text-[8px] text-white/10 uppercase mt-1" data-i18n="server_list_empty_desc">Добавьте первый сервер</p>
+                    </div>
+                `;
+            } else {
+                html = servers.map(s => `
+                    <div class="px-4 py-3 hover:bg-white/5 cursor-pointer group flex items-center justify-between transition-all ${s.Name === activeName ? 'bg-red-600/10 border-l-2 border-red-500' : ''}" 
+                         onclick="selectServer('${s.Name}')">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-1.5 h-1.5 rounded-none ${(() => {
+                                const val = (s.Status || '').toLowerCase();
+                                if (val.includes('run') || val.includes('online')) return 'bg-green-500 animate-pulse';
+                                if (val.includes('start') || val.includes('restart')) return 'bg-yellow-500 animate-pulse';
+                                if (val.includes('update') || val.includes('check') || val.includes('download') || val.includes('install')) return 'bg-blue-500 animate-pulse';
+                                if (val.includes('stopping')) return 'bg-orange-500 animate-pulse';
+                                if (val.includes('error') || val.includes('fail')) return 'bg-red-500 animate-pulse';
+                                return 'bg-gray-700';
+                            })()}"></div>
+                            <div>
+                                <div class="text-[11px] font-black ${s.Name === activeName ? 'text-red-500' : 'text-white/80'} uppercase tracking-tight">${s.Name}</div>
+                                <div class="text-[8px] text-white/20 font-bold uppercase truncate max-w-[140px]">${s.Path}</div>
+                            </div>
+                        </div>
+                        <button onclick="event.stopPropagation(); forgetServer('${s.Name}')" class="opacity-0 group-hover:opacity-100 p-2 text-white/10 hover:text-red-500 transition-all">
+                            <i class="fas fa-trash-alt text-[10px]"></i>
+                        </button>
+                    </div>
+                `).join('');
+            }
+            
+            // ALWAYS Add action buttons
+            html += `
+                <div class="p-2 border-t border-white/5 space-y-1">
+                    <button onclick="safePostMessage({action:'InstallServer'})" class="w-full py-2 bg-white/5 hover:bg-red-600/20 text-[9px] font-black text-white/40 hover:text-red-500 transition-all uppercase flex items-center justify-center">
+                        <i class="fas fa-plus-circle mr-2"></i> <span data-i18n="btn_install_new">Установить новый</span>
+                    </button>
+                    <button onclick="safePostMessage({action:'import_server'})" class="w-full py-2 text-[8px] font-black text-white/20 hover:text-white transition-all uppercase">
+                         <span data-i18n="btn_import_existing">Подключить имеющийся</span>
+                    </button>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+            if (typeof updateLocalization === 'function') updateLocalization();
+        }
+
+        function selectServer(name) {
+            safePostMessage({ action: 'select_server', name: name });
+            document.getElementById('server-selector-menu').classList.add('invisible', 'opacity-0', 'translate-y-2');
+            document.getElementById('server-menu-chevron').classList.remove('rotate-180');
+        }
+
+        function forgetServer(name) {
+            if (confirm(`Удалить ${name} из списка? Файлы сервера не будут затронуты.`)) {
+                safePostMessage({ action: 'delete_server', name: name });
+            }
+        }
+
+
+        let translations = {
+            ru: {
+                "header_install": "Установить сервер",
+                "header_market": "Маркетплейс",
+                "header_help": "Помощь",
+                "btn_start": "Запустить систему",
+                "btn_stop": "Остановить процесс",
+                "btn_restart": "Перезагрузка",
+                "btn_wipe": "Полный вайп",
+                "btn_backup": "Бэкап системы",
+                "stat_players": "Игроки",
+                "stat_fps": "FPS Сервера",
+                "stat_entities": "Сущности",
+                "stat_ping": "Задержка",
+                "nav_settings": "Настройки",
+                "nav_plugins": "Плагины",
+                "nav_players": "Игроки",
+                "nav_files": "Файлы",
+                "footer_rights": "TRP SERVER PANEL © 2026 TEAM RUST PLUGINS. ВСЕ ПРАВА ЗАЩИЩЕНЫ.",
+                "footer_uptime": "Время работы",
+                "footer_version": "Версия",
+                "desc_settings": "Конфигурация параметров сервера",
+                "desc_plugins": "Управление модами и расширениями",
+                "desc_players": "Администрирование онлайна",
+                "desc_files": "Файловый менеджер и логи",
+                "status_running": "РАБОТАЕТ",
+                "status_stopped": "ВЫКЛЮЧЕН",
+                "status_starting": "ЗАПУСКАЕТСЯ",
+                "status_restarting": "ПЕРЕЗАГРУЗКА",
+                "status_stopping": "ОСТАНАВЛИВАЕТСЯ",
+                "status_updating": "ОБНОВЛЯЕТСЯ",
+                "status_error": "ОШИБКА",
+                "ai_mode_title": "AI COPILOT",
+                "ai_mode_desc": "Интеллектуальный помощник",
+                "ai_mode_placeholder": "Введите команду или спросите ИИ...",
+                "tooltip_lowspec": "Облегченный режим (откл. анимации)",
+                "header_select_server": "Выбор сервера",
+                "modal_exit_title": "ПОДТВЕРДИТЕ ВЫХОД",
+                "modal_exit_text": "Активный сервер все еще запущен. Вы уверены, что хотите остановить все процессы и закрыть приложение?",
+                "modal_cancel": "Отмена",
+                "modal_confirm": "Завершить",
+                "btn_install_new": "Установить новый",
+                "btn_import_existing": "Подключить имеющийся",
+                "server_list_empty": "Список пуст",
+                "server_list_empty_desc": "Добавьте или установите первый сервер",
+                "tooltip_install": "Открыть мастер установки",
+                "tooltip_market": "Открыть маркетплейс",
+                "tooltip_files": "Проводник файлов",
+                "tooltip_backups": "Резервные копии",
+                "tooltip_help": "Открыть справку",
+                "tooltip_commands": "Открыть список команд",
+                "tooltip_clear": "Очистить консоль",
+                "placeholder_console": "Введите консольную команду...",
+                "placeholder_ai": "Спросите ИИ-помощника TRP...",
+                "filter_all": "ВСЕ ЛОГИ",
+                "filter_system": "СИСТЕМА",
+                "filter_chat": "ЧАТ",
+                "filter_warning": "ВНИМАНИЕ",
+                "filter_rcon": "RCON",
+                "filter_mods": "МОДЫ",
+                "status_active": "Активен в реальном времени",
+                "header_files": "Проводник",
+                "header_backups": "Бэкапы",
+                "app_title": "TRP SERVER PANEL",
+                "header_desc": "Hyper-Performance Orchestrator",
+                "commands": "Команды",
+                "clear": "Очистить",
+                "autoscroll": "Авто-скролл",
+                "tooltip_minimize": "Свернуть",
+                "tooltip_maximize": "Развернуть",
+                "tooltip_close": "Закрыть",
+                "placeholder_search": "Поиск (настройки, игроки, логи, плагины)...",
+                "audit_welcome_text": "AI SHIELD готов к проверке ваших плагинов на наличие скрытых функций, бэкдоров и кражи данных.",
+                "audit_scanning": "ИИ анализирует код...",
+                "audit_step_default": "Поиск скрытых WebRequests",
+                "audit_apply_fix": "Исправить уязвимости",
+                "audit_start": "Начать сканирование",
+                "tooltip_ai_mode": "Переключить ИИ-режим",
+                "ai_active": "ИИ АКТИВЕН"
+            },
+            en: {
+                "header_install": "Install Server",
+                "header_market": "Marketplace",
+                "header_help": "Help",
+                "btn_start": "Start System",
+                "btn_stop": "Stop Process",
+                "btn_restart": "Restart",
+                "btn_wipe": "Full Wipe",
+                "btn_backup": "Create Snapshot",
+                "stat_players": "Players",
+                "stat_fps": "Server FPS",
+                "stat_entities": "Entities",
+                "stat_ping": "Latency",
+                "nav_settings": "Settings",
+                "nav_plugins": "Plugins",
+                "nav_players": "Players",
+                "nav_files": "Files",
+                "footer_rights": "TRP SERVER PANEL © 2026 TEAM RUST PLUGINS. ALL RIGHTS RESERVED.",
+                "footer_uptime": "Uptime",
+                "footer_version": "Version",
+                "desc_settings": "Server configuration params",
+                "desc_plugins": "Manage mods and extensions",
+                "desc_players": "Online administration",
+                "desc_files": "File manager and logs",
+                "status_running": "RUNNING",
+                "status_stopped": "STOPPED",
+                "status_starting": "STARTING",
+                "status_restarting": "RESTARTING",
+                "status_stopping": "STOPPING",
+                "status_updating": "UPDATING",
+                "status_error": "ERROR",
+                "ai_mode_title": "AI COPILOT",
+                "ai_mode_desc": "Intelligent Assistant",
+                "ai_mode_placeholder": "Enter command or ask AI...",
+                "tooltip_lowspec": "Low Spec Mode (Disable Animations)",
+                "header_select_server": "Select Server",
+                "modal_exit_title": "CONFIRM SYSTEM TERMINATION",
+                "modal_exit_text": "An active server process is currently running. Terminating the panel now will force-stop the server. Proceed?",
+                "modal_cancel": "Cancel",
+                "modal_confirm": "Terminate",
+                "btn_install_new": "Install New",
+                "btn_import_existing": "Import Existing",
+                "server_list_empty": "List is empty",
+                "server_list_empty_desc": "Add or install your first server",
+                "tooltip_install": "Open install master",
+                "tooltip_market": "Open marketplace",
+                "tooltip_files": "File explorer",
+                "tooltip_backups": "Backups",
+                "tooltip_help": "Open help",
+                "tooltip_commands": "Open command list",
+                "tooltip_clear": "Clear console",
+                "placeholder_console": "Enter console command...",
+                "placeholder_ai": "Ask TRP AI Assistant...",
+                "filter_all": "ALL LOGS",
+                "filter_system": "SYSTEM",
+                "filter_chat": "CHAT",
+                "filter_warning": "WARNING",
+                "filter_rcon": "RCON",
+                "filter_mods": "MODS",
+                "status_active": "Real-time Active",
+                "header_files": "Explorer",
+                "header_backups": "Backups",
+                "app_title": "TRP SERVER PANEL",
+                "header_desc": "Hyper-Performance Orchestrator",
+                "commands": "Commands",
+                "clear": "Clear",
+                "autoscroll": "Auto-scroll",
+                "tooltip_minimize": "Minimize",
+                "tooltip_maximize": "Maximize",
+                "tooltip_close": "Close",
+                "placeholder_search": "Search (settings, players, logs, plugins)...",
+                "audit_welcome_text": "AI SHIELD is ready to audit your plugins for hidden functions, backdoors, and data theft.",
+                "audit_scanning": "AI is analyzing code...",
+                "audit_step_default": "Searching for hidden WebRequests",
+                "audit_apply_fix": "Fix Vulnerabilities",
+                "audit_start": "Start Scanning",
+                "tooltip_ai_mode": "Toggle AI Mode",
+                "ai_active": "AI ACTIVE"
+            }
+        };
+
+        let currentLang = localStorage.getItem('trp_lang') || 'ru';
+
+        let isAutoScroll = true;
+
+        let isLowSpecMode = localStorage.getItem('trp_lowspec') === 'true';
+
+        window.currentActiveServerName = "NONE";
+
+        async function setLanguage(lang, skipPost = false) {
+
+            currentLang = lang;
+
+            localStorage.setItem('trp_lang', lang);
+
+            try {
+
+                const response = await fetch(`locales/${lang}.json`);
+
+                if (response.ok) {
+
+                    const remoteTranslations = await response.json();
+                    translations[lang] = { ...translations[lang], ...remoteTranslations };
+
+                }
+
+            } catch(e) {
+
+                console.warn('[LOCALIZATION] Fetch failed, using inline translation dictionary fallback.', e);
+
+            }
+
+            updateLocalization();
+
+            // Update UI Active State
+
+            const ruBtn = document.getElementById('lang-ru');
+
+            const enBtn = document.getElementById('lang-en');
+
+            if (ruBtn) ruBtn.classList.toggle('active', lang === 'ru');
+
+            if (enBtn) enBtn.classList.toggle('active', lang === 'en');
+
+            if (!skipPost) {
+                safePostMessage({ action: 'setLanguage', lang: lang });
+            }
+
+        }
+
+        function toggleLowSpecMode() {
+
+            isLowSpecMode = !isLowSpecMode;
+
+            localStorage.setItem('trp_lowspec', isLowSpecMode);
+
+            applyLowSpecMode();
+
+        }
+
+        function applyLowSpecMode() {
+
+            const lowSpecBtn = document.getElementById('btn-lowspec');
+
+            if (lowSpecBtn) lowSpecBtn.classList.toggle('text-yellow-500', isLowSpecMode);
+
+            if (isLowSpecMode) {
+
+                document.body.classList.add('low-spec');
+
+                Chart.defaults.animation = false;
+
+                // Add CSS to head if not present
+
+                if (!document.getElementById('lowspec-style')) {
+
+                    const style = document.createElement('style');
+
+                    style.id = 'lowspec-style';
+
+                    style.innerHTML = `.low-spec * { backdrop-filter: none !important; text-shadow: none !important; box-shadow: none !important; }`;
+
+                    document.head.appendChild(style);
+
+                }
+
+            } else {
+
+                document.body.classList.remove('low-spec');
+
+                Chart.defaults.animation = true;
+
+            }
+
+        }
+
+        function updateLocalization() {
+
+            if (!translations || !currentLang || !translations[currentLang]) return;
+            const dict = translations[currentLang];
+            const fallbackDict = translations['en'] || {};
+
+            // InnerHTML
+
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+
+                const key = el.getAttribute('data-i18n');
+
+                if (dict[key]) {
+                    el.innerHTML = dict[key];
+                } else if (fallbackDict[key]) {
+                    el.innerHTML = fallbackDict[key];
+                }
+
+            });
+
+            // Placeholders
+
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+
+                const key = el.getAttribute('data-i18n-placeholder');
+
+                if (dict[key]) {
+                    el.placeholder = dict[key];
+                } else if (fallbackDict[key]) {
+                    el.placeholder = fallbackDict[key];
+                }
+
+            });
+
+            // Titles
+
+            document.querySelectorAll('[data-i18n-title]').forEach(el => {
+
+                const key = el.getAttribute('data-i18n-title');
+
+                if (dict[key]) {
+                    el.title = dict[key];
+                } else if (fallbackDict[key]) {
+                    el.title = fallbackDict[key];
+                }
+
+            });
+
+            // Re-render commands if open
+
+            if(!document.getElementById('modal-commands').classList.contains('hidden')) renderCommands();
+
+            document.getElementById('lang-ru').classList.toggle('active', currentLang === 'ru');
+
+            document.getElementById('lang-en').classList.toggle('active', currentLang === 'en');
+
+        }
+
+        function setTheme(themeId) {
+
+            const theme = { primary: '#ff0000', glow: 'rgba(255, 0, 0, 0.5)', rgb: '255, 0, 0' };
+
+            const root = document.documentElement;
+
+            root.style.setProperty('--primary-color', theme.primary);
+
+            root.style.setProperty('--primary-glow', theme.glow);
+
+            root.style.setProperty('--primary-rgb', theme.rgb);
+
+            localStorage.setItem('trp_theme', 'blood');
+
+        }
+
+        function sendCommand(name) { 
+
+            console.log(`[UI] Command Clicked: ${name}`);
+
+            safePostMessage({ action: "command", name: name }); 
+
+        }
+
+        let isAiMode = false;
+
+        function toggleConsoleMode() {
+
+            isAiMode = !isAiMode;
+
+            const btn = document.getElementById('ai-mode-toggle');
+
+            const indicator = document.getElementById('ai-mode-indicator');
+
+            const input = document.getElementById('console-input');
+
+            btn.classList.toggle('bg-red-500/20', isAiMode);
+
+            btn.classList.toggle('border-red-500/30', isAiMode);
+
+            btn.classList.toggle('text-red-500', isAiMode);
+
+            indicator.classList.toggle('hidden', !isAiMode);
+
+            input.placeholder = isAiMode ? translations[currentLang].placeholder_ai : translations[currentLang].placeholder_console;
+
+            if (isAiMode) {
+
+                input.style.paddingLeft = "160px";
+
+            } else {
+
+                input.style.paddingLeft = "56px";
+
+            }
+
+        }
+
+        function sendConsoleCommand() {
+
+            const input = document.getElementById('console-input');
+
+            const cmd = input.value.trim();
+
+            if(!cmd) return;
+
+            if (isAiMode) {
+
+                safePostMessage({ action: "ai_ask", payload: cmd });
+
+            } else {
+
+                safePostMessage({ action: "command", name: "ConsoleCommand", payload: cmd });
+
+            }
+
+            input.value = '';
+
+        }
+
+        function sendDirectCommand(cmd) {
+
+            logDebug(`Quick Command Sent: ${cmd}`);
+
+            safePostMessage({ action: "command", name: "ConsoleCommand", payload: cmd });
+
+        }
+
+        function clearConsole() { 
+
+            const out = document.getElementById('console-output');
+
+            if (out) out.innerHTML = '<div class="text-red-500 font-black mb-4">[TRP] Console output cleared.</div>';
+
+        }
+
+        function toggleAutoScroll() {
+
+            isAutoScroll = !isAutoScroll;
+
+            const dot = document.getElementById('autoscroll-dot');
+
+            dot.style.right = isAutoScroll ? '2px' : 'auto';
+
+            dot.style.left = isAutoScroll ? 'auto' : '2px';
+
+            dot.parentElement.classList.toggle('bg-red-600', isAutoScroll);
+
+            dot.parentElement.classList.toggle('bg-gray-700', !isAutoScroll);
+
+        }
+
+        function openModal(id) {
+
+            const overlay = document.getElementById('modal-overlay');
+
+            overlay.classList.remove('hidden');
+
+            setTimeout(() => overlay.classList.add('opacity-100'), 10);
+
+            document.getElementById(id).classList.remove('hidden');
+
+        }
+
+        function closeModal() {
+
+            const overlay = document.getElementById('modal-overlay');
+
+            overlay.classList.remove('opacity-100');
+
+            setTimeout(() => {
+
+                overlay.classList.add('hidden');
+
+                overlay.children.forEach(c => c.classList.add('hidden'));
+
+            }, 300);
+
+        }
+
+
+        const commandsData = [
+
+            { title: { ru: "01. Управление правами", en: "01. Identity Control" }, color: "red-500", commands: [{ cmd: "ownerid [ID]", insert: "ownerid ", ru: "Назначить владельца", en: "Set Owner" }] },
+
+            { title: { ru: "02. Ядро сервера", en: "02. Server Engine" }, color: "blue-500", commands: [{ cmd: "server.save", insert: "server.save", ru: "Сохранить мир", en: "Save World" }] }
+
+        ];
+
+        function renderCommands() {
+
+            const container = document.getElementById('commands-list');
+
+            if(!container || !window._trp_commands_data) return;
+
+            try {
+
+                const groups = JSON.parse(window._trp_commands_data);
+
+                container.innerHTML = groups.map(group => `
+
+                    <div class="space-y-2">
+
+                        <div class="text-[9px] text-${group.color} font-black uppercase tracking-[0.2em] mb-3 border-b border-white/5 pb-1">${group.title}</div>
+
+                        ${group.items.map(c => `
+
+                            <div class="p-2 bg-white/5 rounded-none border border-white/5 hover:border-red-500/30 cursor-pointer" onclick="insertCommand('${c.cmd.split(' ')[0]}')">
+
+                                <div class="flex justify-between items-center mb-1">
+
+                                    <code class="text-[10px] font-black text-white">${c.cmd}</code>
+
+                                    <i class="fas fa-terminal text-[8px] text-white/20"></i>
+
+                                </div>
+
+                                <div class="text-[8px] text-white/40 font-medium">${currentLang === 'ru' ? c.ru : c.en}</div>
+
+                            </div>
+
+                        `).join('')}
+
+                    </div>
+
+                `).join('');
+
+            } catch (e) {
+
+                console.error("Failed to render commands:", e);
+
+            }
+
+        }
+
+        function insertCommand(cmd) {
+
+            document.getElementById('console-input').value = cmd;
+
+            closeModal();
+
+            document.getElementById('console-input').focus();
+
+        }
+
+        function filterCommands() { /* Standard logic omitted for brevity, can be added if needed */ }
+
+        // --- EXIT CONTROLLER (V6.7) ---
+
+        function showExitConfirmation() {
+
+            const modal = document.getElementById('system-modal');
+
+            const content = document.getElementById('modal-content');
+
+            modal.classList.remove('opacity-0', 'invisible', 'pointer-events-none');
+
+            content.classList.remove('scale-90');
+
+        }
+
+        function confirmSystemAction(result) {
+
+            const modal = document.getElementById('system-modal');
+
+            const content = document.getElementById('modal-content');
+
+            modal.classList.add('opacity-0', 'invisible', 'pointer-events-none');
+
+            content.classList.add('scale-90');
+
+            // Send decision back to C#
+
+            safePostMessage({ action: "exit_confirm_result", result: result });
+
+        }
+
+        let customConfirmCallback = null;
+
+        function showCustomConfirm(title, message, callback) {
+            customConfirmCallback = callback;
+            document.getElementById('confirm-modal-title').innerText = title;
+            document.getElementById('confirm-modal-message').innerText = message;
+            
+            const modal = document.getElementById('custom-confirm-modal');
+            const content = document.getElementById('confirm-modal-content');
+            if (modal && content) {
+                modal.classList.remove('opacity-0', 'invisible', 'pointer-events-none');
+                content.classList.remove('scale-90');
+            }
+        }
+
+        function handleCustomConfirm(result) {
+            const modal = document.getElementById('custom-confirm-modal');
+            const content = document.getElementById('confirm-modal-content');
+            if (modal && content) {
+                modal.classList.add('opacity-0', 'invisible', 'pointer-events-none');
+                content.classList.add('scale-90');
+            }
+            
+            if (result && typeof customConfirmCallback === 'function') {
+                customConfirmCallback();
+            }
+            customConfirmCallback = null;
+        }
+
+        function confirmWipe() {
+            showCustomConfirm(
+                currentLang === 'ru' ? 'Подтверждение вайпа' : 'Confirm Wipe',
+                currentLang === 'ru' ? 'Вы действительно хотите выполнить ПОЛНЫЙ ВАЙП сервера? Все карты, сохранения и файлы игроков будут безвозвратно удалены!' : 'Are you sure you want to execute a FULL WIPE of the server? All maps, saves, and player files will be permanently deleted!',
+                () => {
+                    sendCommand('WipeServer');
+                }
+            );
+        }
+
+    </script>
+
+    <!-- GLOBAL SERVER DROPDOWN (ROOT PARENT) -->
+
+    <div id="server-selector-menu" class="fixed w-64 glass rounded-none border border-red-500/20 shadow-2xl opacity-0 invisible translate-y-2 transition-all duration-300 z-[10000] overflow-hidden">
+
+        <div class="p-3 border-b border-white/5 bg-red-600/10">
+
+            <span class="text-[10px] font-black text-red-500 uppercase tracking-widest" data-i18n="header_select_server">Выбор сервера</span>
+
+        </div>
+
+        <div id="server-list-container" class="max-h-60 overflow-y-auto py-2">
+
+            <!-- Servers populated via JS -->
+
+        </div>
+
+    </div>
+
+    <!-- 8. MODAL: SYSTEM CONFIRMATION (V6.7) -->
+
+    <div id="system-modal" class="fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md opacity-0 invisible pointer-events-none transition-all duration-300">
+
+        <div class="glass w-full max-w-md rounded-none overflow-hidden border border-red-500/30 shadow-[0_0_50px_rgba(255,0,0,0.3)] transform scale-90 transition-transform duration-300" id="modal-content">
+
+            <div class="p-8 space-y-6">
+
+                <div class="flex items-center space-x-5">
+
+                    <div class="w-14 h-14 rounded-none bg-red-600/20 flex items-center justify-center border border-red-600/40">
+
+                        <i class="fas fa-power-off text-red-500 text-2xl animate-pulse"></i>
+
+                    </div>
+
+                    <div>
+
+                        <h3 class="text-xl font-black text-white uppercase tracking-tight" data-i18n="modal_exit_title">ПОДТВЕРДИТЕ ВЫХОД</h3>
+
+                        <div class="flex items-center space-x-2">
+
+                             <div class="w-1.5 h-1.5 rounded-none bg-red-500 animate-pulse"></div>
+
+                             <p class="text-[9px] text-red-500 uppercase tracking-widest font-black">System Termination Protocol</p>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <p class="text-[13px] text-white/70 leading-relaxed font-medium" data-i18n="modal_exit_text">
+
+                    Активный сервер все еще запущен. Вы уверены, что хотите остановить все процессы и закрыть приложение?
+
+                </p>
+
+                <div class="flex space-x-3 pt-2">
+
+                    <button onclick="confirmSystemAction(false)" class="flex-1 h-12 rounded-none border border-white/10 text-white/60 hover:bg-white/5 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest" data-i18n="modal_cancel">
+
+                        Отмена
+
+                    </button>
+
+                    <button onclick="confirmSystemAction(true)" class="flex-1 h-12 rounded-none bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white shadow-[0_4px_15px_rgba(255,0,0,0.3)] transition-all text-[10px] font-black uppercase tracking-widest" data-i18n="modal_confirm">
+
+                        Завершить
+
+                    </button>
+
+                </div>
+
+            </div>
+
+            <div class="h-1 w-full bg-gradient-to-r from-transparent via-red-500/50 to-transparent"></div>
+
+        </div>
+
+    </div>
+
+    <script>
+
+        // Check for click outside to close
+        const chartInstances = {};
+
+        function renderSparkline(canvasId, data, color) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+
+            if (!chartInstances[canvasId]) {
+                const ctx = canvas.getContext('2d');
+                chartInstances[canvasId] = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.map((_, i) => i),
+                        datasets: [{
+                            data: data,
+                            borderColor: color,
+                            borderWidth: 2,
+                            fill: true,
+                            backgroundColor: color.replace('1)', '0.1)'),
+                            tension: 0.4,
+                            pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                        scales: {
+                            x: { display: false },
+                            y: { display: false, min: 0 }
+                        },
+                        animation: { duration: 400 }
+                    }
+                });
+            } else {
+                chartInstances[canvasId].data.labels = data.map((_, i) => i);
+                chartInstances[canvasId].data.datasets[0].data = data;
+                chartInstances[canvasId].update('none');
+            }
+        }
+
+        // Notification System
+        function showNotification(title, message, type = 'info') {
+            const container = document.getElementById('notification-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            const colors = {
+                info: 'border-blue-500/50 bg-blue-500/10 text-blue-400',
+                success: 'border-green-500/50 bg-green-500/10 text-green-400',
+                warning: 'border-yellow-500/50 bg-yellow-500/10 text-yellow-400',
+                error: 'border-red-500/50 bg-red-500/10 text-red-400',
+                security: 'border-purple-500/50 bg-purple-500/10 text-purple-400'
+            };
+
+            toast.className = `p-4 mb-3 border backdrop-blur-md translate-x-12 opacity-0 transition-all duration-500 flex items-start space-x-4 ${colors[type] || colors.info}`;
+            toast.innerHTML = `
+                <div class="mt-1"><i class="fas ${type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i></div>
+                <div>
+                    <p class="font-black text-[10px] uppercase tracking-widest">${title}</p>
+                    <p class="text-[9px] font-bold opacity-70 mt-1">${message}</p>
+                </div>
+            `;
+
+            container.appendChild(toast);
+            setTimeout(() => { toast.classList.remove('translate-x-12', 'opacity-0'); }, 100);
+            setTimeout(() => {
+                toast.classList.add('translate-x-12', 'opacity-0');
+                setTimeout(() => toast.remove(), 500);
+            }, 5000);
+        }
+
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('server-selector-menu');
+            const trigger = document.getElementById('server-menu-trigger');
+            if (menu && !menu.contains(e.target) && !trigger.contains(e.target)) {
+                menu.classList.add('invisible', 'opacity-0', 'translate-y-2');
+                document.getElementById('server-menu-chevron').classList.remove('rotate-180');
+            }
+        });
+
+        // Global Search Logic
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'k') {
+                e.preventDefault();
+                openSearch();
+            }
+            if (e.key === 'Escape') {
+                closeSearch();
+            }
+        });
+
+        function openSearch() {
+            const modal = document.getElementById('search-modal');
+            if (!modal) return;
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.remove('scale-95');
+            document.getElementById('global-search-input').focus();
+        }
+
+        function closeSearch() {
+            const modal = document.getElementById('search-modal');
+            if (!modal) return;
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.add('scale-95');
+        }
+
+        // Global Search Input Logic
+        document.getElementById('global-search-input')?.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const resultsDiv = document.getElementById('search-results');
+            if (!query) {
+                resultsDiv.innerHTML = '<div class="text-center py-10 text-white/10 text-[10px] font-black uppercase tracking-widest">Введите запрос для поиска...</div>';
+                return;
+            }
+
+            const items = [
+                { name: 'Настройки сервера', path: 'Settings.html', icon: 'fa-cog' },
+                { name: 'Плагины', path: 'Plugins.html', icon: 'fa-puzzle-piece' },
+                { name: 'Игроки', path: 'Players.html', icon: 'fa-users' },
+                { name: 'Логи приложения', path: 'AppLogs.html', icon: 'fa-file-alt' },
+                { name: 'Дашборд', path: 'Dashboard.html', icon: 'fa-home' }
+            ];
+
+            const filtered = items.filter(i => i.name.toLowerCase().includes(query));
+            if (filtered.length === 0) {
+                resultsDiv.innerHTML = '<div class="text-center py-10 text-white/10 text-[10px] font-black uppercase tracking-widest">Ничего не найдено</div>';
+            } else {
+                resultsDiv.innerHTML = filtered.map(i => `
+                    <div class="p-3 bg-white/5 hover:bg-red-500/10 border border-white/5 hover:border-red-500/20 cursor-pointer transition-all flex items-center space-x-4 group" onclick="navigateTo('${i.path}')">
+                        <i class="fas ${i.icon} text-red-500 group-hover:scale-110 transition-transform"></i>
+                        <span class="text-[10px] font-black uppercase tracking-widest">${i.name}</span>
+                    </div>
+                `).join('');
+            }
+        });
+
+        // Page Transitions
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => document.body.classList.add('fade-in'), 100);
+            if (typeof setLanguage === 'function') {
+                setLanguage(currentLang);
+            }
+            if (typeof applyLowSpecMode === 'function') {
+                applyLowSpecMode();
+            }
+
+            // [SPA IFRAME INTEGRATION]
+            const iframe = document.getElementById('content-iframe');
+            if (iframe) {
+                iframe.addEventListener('load', function() {
+                    try {
+                        const loc = this.contentWindow.location.href;
+                        if (loc && loc !== 'about:blank') {
+                            const page = loc.substring(loc.lastIndexOf('/') + 1);
+                            if (page && page !== 'blank' && page !== 'Dashboard.html') {
+                                updateActiveTab(page);
+                            }
+                        }
+                    } catch (e) {
+                        // ignore cross-origin
+                    }
+                });
+            }
+
+            // Message forwarding
+            if (window.chrome && window.chrome.webview) {
+                window.chrome.webview.addEventListener('message', event => {
+                    if (iframe && iframe.contentWindow) {
+                        iframe.contentWindow.postMessage(event.data, '*');
+                    }
+                });
+            }
+
+            window.addEventListener('message', event => {
+                const data = event.data;
+                if (!data) return;
+                if (data.action === 'close_subpage') {
+                    navigateTo('Dashboard.html');
+                } else if (data.action === 'forward_to_csharp') {
+                    if (window.chrome && window.chrome.webview) {
+                        window.chrome.webview.postMessage(data.payload);
+                    }
+                }
+            });
+        });
+
+        function navigateTo(url) {
+            const consoleView = document.getElementById('console-view');
+            const iframeView = document.getElementById('iframe-view');
+            const iframe = document.getElementById('content-iframe');
+
+            if (!consoleView || !iframeView || !iframe) {
+                window.location.href = url;
+                return;
+            }
+
+            // Remove active classes
+            document.querySelectorAll('.cyber-btn.header-btn, .nav-btn-wide, footer button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            if (url === 'Dashboard.html' || url === 'console') {
+                iframeView.classList.add('hidden');
+                consoleView.classList.remove('hidden');
+                iframe.src = 'about:blank';
+                
+                const footerConsoleBtn = document.querySelector('footer button[onclick*="Dashboard.html"]');
+                if (footerConsoleBtn) footerConsoleBtn.classList.add('active');
+            } else {
+                consoleView.classList.add('hidden');
+                iframeView.classList.remove('hidden');
+                
+                // Only change iframe src if it is different
+                const iframeLoc = iframe.contentWindow.location.href;
+                if (!iframeLoc || iframeLoc.indexOf(url) === -1) {
+                    iframe.src = url;
+                }
+                
+                // Set corresponding tab active
+                const activeEl = document.querySelector(`[onclick*="${url}"]`);
+                if (activeEl) {
+                    activeEl.classList.add('active');
+                }
+            }
+        }
+
+        function updateActiveTab(page) {
+            document.querySelectorAll('.cyber-btn.header-btn, .nav-btn-wide, footer button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            const activeEl = document.querySelector(`[onclick*="${page}"]`);
+            if (activeEl) {
+                activeEl.classList.add('active');
+            }
+        }
+
+
+    </script>
+
+    <!-- 5. SECURITY AUDIT MODAL (V16.3) -->
+
+    <div id="security-modal" class="fixed inset-0 z-[500] flex items-center justify-center bg-black/80 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-300">
+
+        <div class="w-[900px] h-[600px] glass rounded-none border border-red-500/20 flex flex-col overflow-hidden shadow-[0_0_50px_rgba(255,0,0,0.15)] scale-95 transition-transform duration-300" id="security-modal-content">
+
+            <!-- AI Sentinel Modal -->
+    <div id="security-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center opacity-0 pointer-events-none transition-all duration-300">
+        <div class="w-[600px] glass-dark border border-white/10 p-6 shadow-2xl transform scale-95 transition-all duration-300">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-none bg-red-600/20 border border-red-500/30 flex items-center justify-center">
+                        <i class="fas fa-shield-virus text-red-500"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-[12px] font-black uppercase tracking-[0.2em]">AI Sentinel Report</h2>
+                        <div id="audit-risk-badge" class="text-[8px] font-bold px-2 py-0.5 mt-1 inline-block uppercase">RISK: UNKNOWN</div>
+                    </div>
+                </div>
+                <button onclick="closeSecurityModal()" class="text-white/30 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                <div id="audit-summary" class="p-3 bg-white/5 border-l-2 border-red-500 text-[10px] text-gray-300 leading-relaxed italic">
+                    Запуск анализа логов...
+                </div>
+                
+                <div class="space-y-2">
+                    <h3 class="text-[9px] font-black text-white/40 uppercase tracking-widest">Findings</h3>
+                    <div id="audit-findings" class="space-y-2 text-[10px]">
+                        <!-- Findings go here -->
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <h3 class="text-[9px] font-black text-white/40 uppercase tracking-widest">Recommendations</h3>
+                    <div id="audit-recommendations" class="space-y-1 text-[10px] text-green-400">
+                        <!-- Recs go here -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button onclick="closeSecurityModal()" class="px-6 py-2 bg-white/5 border border-white/10 text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+            <!-- Header -->
+
+            <div class="h-16 flex items-center justify-between px-8 border-b border-white/5 bg-white/2">
+
+                <div class="flex items-center space-x-3">
+
+                    <div class="w-8 h-8 rounded-none bg-red-500/20 flex items-center justify-center text-red-500 border border-red-500/30">
+
+                        <i class="fas fa-shield-virus"></i>
+
+                    </div>
+
+                    <div>
+
+                        <h2 class="text-sm font-black tracking-tighter uppercase">TRP AI SHIELD</h2>
+
+                        <p class="text-[10px] text-white/30 font-bold uppercase tracking-widest">Advanced Plugin Security Auditor</p>
+
+                    </div>
+
+                </div>
+
+                <button onclick="closeSecurityAudit()" class="text-white/20 hover:text-white transition-colors">
+
+                    <i class="fas fa-times"></i>
+
+                </button>
+
+            </div>
+
+            <div class="flex-1 flex overflow-hidden">
+
+                <!-- Sidebar: Plugin List -->
+
+                <div class="w-64 border-r border-white/5 flex flex-col bg-black/20">
+
+                    <div class="p-4 border-b border-white/5">
+
+                        <input type="text" id="plugin-search" placeholder="Поиск плагина..." class="w-full bg-white/5 border border-white/10 rounded-none px-3 py-2 text-[10px] outline-none focus:border-red-500/50 transition-colors">
+
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto p-2 space-y-1" id="audit-plugin-list">
+
+                        <!-- Loaded dynamically -->
+
+                        <div class="text-center py-10 text-white/20 text-[10px] uppercase font-bold">Загрузка плагинов...</div>
+
+                    </div>
+
+                </div>
+
+                <!-- Main Content -->
+
+                <div class="flex-1 flex flex-col bg-black/10">
+
+                    <!-- Plugin Info Header -->
+
+                    <div id="audit-active-header" class="h-20 border-b border-white/5 px-8 flex items-center justify-between bg-white/[0.01]">
+
+                        <div class="flex items-center space-x-4">
+
+                            <div class="w-12 h-12 rounded-none bg-white/5 border border-white/10 flex items-center justify-center text-xl">
+
+                                <i class="fas fa-file-code text-white/20"></i>
+
+                            </div>
+
+                            <div>
+
+                                <h3 class="text-base font-black tracking-tight" id="audit-name">Выберите плагин</h3>
+
+                                <p class="text-[10px] text-white/40 font-bold uppercase tracking-widest" id="audit-details">ДЛЯ НАЧАЛА АНАЛИЗА</p>
+
+                            </div>
+
+                        </div>
+
+                        <button id="start-audit-btn" onclick="startScan()" disabled class="px-6 py-2 bg-red-500/10 border border-red-500/20 rounded-none text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/20 disabled:opacity-30 disabled:pointer-events-none transition-all" data-i18n="audit_start">
+                            Начать сканирование
+                        </button>
+
+                    </div>
+
+                    <!-- Report Area -->
+
+                    <div class="flex-1 overflow-y-auto p-8 relative" id="audit-report-area">
+
+                        <div id="audit-welcome" class="absolute inset-0 flex flex-col items-center justify-center text-center p-12 space-y-4">
+
+                            <i class="fas fa-shield-halved text-5xl text-white/5"></i>
+
+                            <p class="text-[11px] text-white/20 font-bold uppercase tracking-[0.2em] leading-relaxed" data-i18n="audit_welcome_text">
+                                AI SHIELD готов к проверке ваших плагинов на наличие скрытых функций, бэкдоров и кражи данных.
+                            </p>
+
+                        </div>
+
+                        <!-- AI Response Content -->
+
+                        <div id="audit-content" class="hidden space-y-6">
+
+                            <!-- Report injected here -->
+
+                        </div>
+
+                        <!-- Scanning Animation -->
+
+                        <div id="audit-loader" class="hidden absolute inset-0 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center space-y-4">
+
+                            <div class="relative w-16 h-16">
+
+                                <div class="absolute inset-0 border-2 border-red-500/20 rounded-none"></div>
+
+                                <div class="absolute inset-0 border-2 border-red-500 border-t-transparent rounded-none animate-spin"></div>
+
+                            </div>
+
+                            <div class="text-center">
+
+                                <p class="text-[11px] font-black text-red-500 uppercase tracking-widest animate-pulse" data-i18n="audit_scanning">ИИ анализирует код...</p>
+
+                                <p class="text-[9px] text-white/30 font-bold uppercase tracking-widest mt-1" id="audit-step" data-i18n="audit_step_default">Поиск скрытых WebRequests</p>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <!-- Footer / Actions -->
+
+                    <div id="audit-footer" class="h-16 border-t border-white/5 bg-white/2 px-8 flex items-center justify-between hidden">
+
+                        <div id="risk-badge" class="px-4 py-1.5 rounded-none border font-black text-[10px] uppercase tracking-widest">
+
+                            Риск: Низкий
+
+                        </div>
+
+                        <div class="flex space-x-3">
+
+                            <button onclick="viewDataExposure()" class="px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-none text-[9px] font-black uppercase text-blue-400 hover:bg-blue-500/20">
+
+                                Анализ данных
+
+                            </button>
+
+                            <button onclick="viewDiff()" class="px-4 py-2 bg-white/5 border border-white/10 rounded-none text-[9px] font-black uppercase text-white/50 hover:text-white transition-colors">
+
+                                Показать Diff
+
+                            </button>
+
+                            <button onclick="applyFix()" class="px-6 py-2 bg-green-500/10 border border-green-500/20 rounded-none text-[9px] font-black uppercase text-green-500 hover:bg-green-500/20" data-i18n="audit_apply_fix">
+                                Исправить уязвимости
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- DIFF VIEW OVERLAY -->
+
+    <div id="diff-overlay" class="fixed inset-0 bg-black/95 z-[200] opacity-0 pointer-events-none transition-all duration-300 flex flex-col">
+
+        <header class="h-20 border-b border-white/5 px-12 flex items-center justify-between">
+
+            <div>
+
+                <h2 class="text-xl font-black italic tracking-tighter uppercase text-primary">Security <span class="text-white">Diff View</span></h2>
+
+                <p class="text-[8px] font-black tracking-[0.5em] text-white/20 uppercase">Сравнение изменений в коде</p>
+
+            </div>
+
+            <button onclick="closeDiff()" class="w-10 h-10 rounded-none bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all">
+
+                <i class="fas fa-times text-white/40"></i>
+
+            </button>
+
+        </header>
+
+        <div class="flex-1 overflow-hidden grid grid-cols-2">
+
+            <!-- Left: Original -->
+
+            <div class="border-r border-white/5 flex flex-col">
+
+                <div class="h-10 border-b border-white/5 flex items-center px-6 bg-white/2">
+
+                    <span class="text-[9px] font-black uppercase tracking-widest text-white/30">ОРИГИНАЛЬНЫЙ КОД (DIRTY)</span>
+
+                </div>
+
+                <pre id="code-original" class="flex-1 overflow-auto p-8 text-[11px] font-mono text-white/40 leading-relaxed"></pre>
+
+            </div>
+
+            <!-- Right: Fixed -->
+
+            <div class="flex flex-col">
+
+                <div class="h-10 border-b border-white/5 flex items-center px-6 bg-red-500/5">
+
+                    <span class="text-[9px] font-black uppercase tracking-widest text-red-500">ИСПРАВЛЕННЫЙ КОД (SECURE)</span>
+
+                </div>
+
+                <pre id="code-fixed" class="flex-1 overflow-auto p-8 text-[11px] font-mono text-white/90 leading-relaxed"></pre>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+
+        // ... (existing scripts) ...
+
+        function openSecurityAudit() {
+
+            const modal = document.getElementById('security-modal');
+
+            const content = document.getElementById('security-modal-content');
+
+            modal.classList.remove('pointer-events-none', 'opacity-0');
+
+            content.classList.remove('scale-95');
+
+            window.chrome.webview.postMessage({ action: 'get_audit_plugins' });
+
+        }
+
+        function closeSecurityAudit() {
+
+            const modal = document.getElementById('security-modal');
+
+            const content = document.getElementById('security-modal-content');
+
+            modal.classList.add('pointer-events-none', 'opacity-0');
+
+            content.classList.add('scale-95');
+
+        }
+
+        let selectedPluginForAudit = null;
+
+        function selectPluginForAudit(name, path) {
+
+            selectedPluginForAudit = { name, path };
+
+            document.getElementById('audit-name').innerText = name;
+
+            document.getElementById('audit-details').innerText = "ГОТОВ К АНАЛИЗУ";
+
+            document.getElementById('start-audit-btn').disabled = false;
+
+            // Highlight selected
+
+            document.querySelectorAll('.audit-item').forEach(el => el.classList.remove('bg-red-500/10', 'border-red-500/30'));
+
+            event.currentTarget.classList.add('bg-red-500/10', 'border-red-500/30');
+
+            // Reset report area
+
+            document.getElementById('audit-welcome').classList.remove('hidden');
+
+            document.getElementById('audit-content').classList.add('hidden');
+
+            document.getElementById('audit-footer').classList.add('hidden');
+
+        }
+
+        let lastAuditReport = "";
+
+        function startScan() {
+
+            if (!selectedPluginForAudit) return;
+
+            document.getElementById('audit-welcome').classList.add('hidden');
+
+            document.getElementById('audit-loader').classList.remove('hidden');
+
+            document.getElementById('start-audit-btn').disabled = true;
+
+            window.chrome.webview.postMessage({ 
+
+                action: 'start_plugin_audit', 
+
+                payload: selectedPluginForAudit.path 
+
+            });
+
+        }
+
+        function applyFix() {
+            if (!selectedPluginForAudit || !lastAuditReport) return;
+            showCustomConfirm(
+                'Автоматическое исправление',
+                `Вы действительно хотите применить автоматическое исправление для ${selectedPluginForAudit.name}? Исходный файл будет перезаписан.`,
+                () => {
+                    safePostMessage({ 
+                        action: 'apply_audit_fix', 
+                        path: selectedPluginForAudit.path,
+                        report: lastAuditReport
+                    });
+                }
+            );
+        }
+
+        let lastOriginalCode = "";
+
+        let lastFixedCode = "";
+
+        function viewDiff() {
+
+            if (!lastOriginalCode || !lastFixedCode) {
+
+                alert("Нет данных для сравнения. Сначала проведите аудит кода.");
+
+                return;
+
+            }
+
+            document.getElementById('code-original').innerText = lastOriginalCode;
+
+            document.getElementById('code-fixed').innerText = lastFixedCode;
+
+            const overlay = document.getElementById('diff-overlay');
+
+            overlay.classList.remove('pointer-events-none', 'opacity-0');
+
+        }
+
+        function closeDiff() {
+
+            const overlay = document.getElementById('diff-overlay');
+
+            overlay.classList.add('pointer-events-none', 'opacity-0');
+
+        }
+
+        function viewDataExposure() {
+
+            if (!lastAuditReport) return;
+
+            const match = lastAuditReport.match(/\[DATA_EXPOSURE\]([\s\S]*?)(?:РИСК|RISK|###|$)/);
+
+            const exposure = match ? match[1].trim() : "Данные о передаче не найдены или ИИ считает плагин безопасным.";
+
+            alert(`🔍 АНАЛИЗ ПЕРЕДАВАЕМЫХ ДАННЫХ:\n\n${exposure}\n\nПожалуйста, убедитесь, что вы доверяете указанным ресурсам.`);
+
+        }
+
+        // --- IPC HANDLERS ---
+
+        if (window.chrome && window.chrome.webview) {
+            window.chrome.webview.addEventListener('message', event => {
+
+            const msg = event.data;
+            if (msg.type !== 'stats_update') console.log(`[DEBUG] IPC Message: ${msg.type}`, msg);
+            
+            if (msg.type === 'request_exit_confirmation') {
+                showExitConfirmation();
+                return;
+            }
+            
+            if (msg.type === 'language_updated') {
+                if (currentLang !== msg.lang) {
+                    setLanguage(msg.lang, true);
+                }
+            }
+
+            if (msg.type === 'server_list_update') {
+                console.log("[DEBUG] Active Server reported:", msg.ActiveServer);
+            }
+
+            if (msg.type === 'audit_plugins_list') {
+
+                const list = document.getElementById('audit-plugin-list');
+
+                list.innerHTML = msg.plugins.map(p => `
+
+                    <div class="audit-item p-3 rounded-none border border-white/5 hover:bg-white/5 cursor-pointer transition-all flex items-center space-x-3" 
+
+                         onclick="selectPluginForAudit('${p.Name}', '${p.FullPath.replace(/\\/g, '/')}')">
+
+                        <i class="fas fa-file-code text-white/20"></i>
+
+                        <div class="overflow-hidden">
+
+                            <div class="text-[10px] font-black text-white/80 truncate">${p.Name}</div>
+
+                            <div class="text-[8px] font-bold text-white/20 uppercase tracking-tighter">${p.Author} | v${p.Version}</div>
+
+                        </div>
+
+                    </div>
+
+                `).join('');
+
+            }
+
+            if (msg.type === 'audit_report') {
+
+                document.getElementById('audit-loader').classList.add('hidden');
+
+                document.getElementById('audit-content').classList.remove('hidden');
+
+                document.getElementById('start-audit-btn').disabled = false;
+
+                lastAuditReport = msg.report;
+
+                lastOriginalCode = msg.originalCode || "";
+
+                // Extract fixed code
+
+                const fixMatch = msg.report.match(/\[FIXED_CODE\]([\s\S]*?)\[\/FIXED_CODE\]/);
+
+                lastFixedCode = fixMatch ? fixMatch[1].trim() : "";
+
+                // Inject report text (stripping the code block tags for cleaner view)
+
+                const displayReport = msg.report.replace(/\[FIXED_CODE\][\s\S]*?\[\/FIXED_CODE\]/g, "*(Фикс подготовлен. Нажмите 'Показать Diff' для просмотра)*");
+
+                document.getElementById('audit-content').innerHTML = `
+
+                    <div class="prose prose-invert max-w-none text-[11px] font-medium leading-relaxed text-white/70">
+
+                        ${displayReport.replace(/\n/g, '<br>')}
+
+                    </div>
+
+                `;
+
+                if (msg.hasFix) {
+
+                    document.getElementById('audit-footer').classList.remove('hidden');
+
+                    const badge = document.getElementById('risk-badge');
+
+                    badge.innerText = `РИСК: ${msg.riskLevel || 'СРЕДНИЙ'}`;
+
+                    badge.style.color = msg.riskLevel === 'ВЫСОКИЙ' || msg.riskLevel === 'КРИТИЧЕСКИЙ' ? '#ef4444' : '#eab308';
+
+                    badge.style.borderColor = msg.riskLevel === 'ВЫСОКИЙ' || msg.riskLevel === 'КРИТИЧЕСКИЙ' ? 'rgba(239,68,68,0.3)' : 'rgba(234,179,8,0.3)';
+
+                }
+
+            }
+
+            if (msg.type === 'security_update') {
+
+               logDebug(`Security auto-scan finished for ${msg.plugin}: ${msg.risk}`);
+
+               // We could add a badge to the marketplace plugin card here
+
+            }
+
+            if (msg.type === 'audit_fix_result') {
+
+                if (msg.success) {
+
+                    alert("Уязвимости успешно исправлены! Плагин перезаписан.");
+
+                    closeSecurityAudit();
+
+                } else {
+
+                    alert("Ошибка: Не удалось применить исправление. Возможно, ИИ не предложил конкретный блок кода для замены.");
+
+                }
+
+            }
+
+            // [V16.3.2] REAL-TIME THEME BROADCAST
+
+            if (msg.type === 'theme_updated') {
+
+                const theme = msg.theme;
+
+                const root = document.documentElement;
+
+                root.style.setProperty('--primary-color', theme.primary);
+
+                root.style.setProperty('--primary-glow', theme.glow);
+
+                root.style.setProperty('--primary-rgb', theme.primaryRgb);
+
+                // Update local storage too to keep sync
+
+                localStorage.setItem('trp_theme', theme.id || 'blood');
+
+            }
+
+            if (msg.type === 'server_list_update') {
+                const activeName = msg.ActiveServer || window.currentActiveServerName;
+                renderServerList(msg.AllServers, activeName);
+                if (activeName && activeName !== "NONE") {
+                    updateSidebarServerName(activeName);
+                }
+            }
+
+            if (msg.type === 'agent_status') {
+                const textEl = document.getElementById('agent-text');
+                const dotEl = document.getElementById('agent-dot');
+                if (textEl) textEl.innerText = `AGENT: ${msg.status.toUpperCase()}`;
+                if (dotEl) {
+                    dotEl.className = msg.status.toLowerCase().includes('error') ? 
+                        'w-2 h-2 rounded-none bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 
+                        'w-2 h-2 rounded-none bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]';
+                }
+            }
+
+            });
+        }
+
+    </script>
+
+    <script>
+
+        const telemetryCharts = {
+            cpu: null,
+            ram: null,
+            net: null,
+            players: null,
+            fps: null,
+            entities: null,
+            ping: null
+        };
+
+        document.addEventListener('alpine:init', () => {
+
+            Alpine.data('telemetryManager', () => ({
+
+                cpu: 0,
+
+                ram: 0,
+
+                net: '0.0 MB/s',
+
+                init() {
+
+                    this.initCharts();
+
+                    if (window.chrome && window.chrome.webview) {
+
+                        window.chrome.webview.addEventListener('message', event => {
+
+                            const data = event.data;
+
+                            if (!data || data.type !== 'stats_update') return;
+
+                            this.cpu = Math.round(data.CpuLoad || 0);
+
+                            this.ram = (data.RamUsageValue || 0).toFixed(1);
+
+                            this.net = data.NetworkUsage || "0.0 MB/s";
+
+                            
+                             // Update DOM elements that are not bound by Alpine
+                             document.getElementById('stat-players').innerText = `${data.PlayerCount}/${data.MaxPlayers}`;
+                             document.getElementById('stat-fps').innerText = Math.round(data.Fps || 0);
+                             document.getElementById('stat-entities').innerText = data.Entities?.toLocaleString() || "0";
+                             document.getElementById('stat-ping').innerText = `${data.Ping || 0}ms`;
+                             
+                             const cpuEl = document.getElementById('stat-cpu');
+                             if (cpuEl) cpuEl.innerText = `${this.cpu}%`;
+                             
+                             const ramEl = document.getElementById('stat-ram');
+                             if (ramEl) ramEl.innerText = `${this.ram} GB`;
+                             
+                             if (data.ServerName) {
+                                 window.currentActiveServerName = data.ServerName;
+                                 
+                                 // 1. Update Header
+                                 const nameEl = document.getElementById('header-server-name');
+                                 if (nameEl) {
+                                     nameEl.innerText = `MANAGING: ${data.ServerName.toUpperCase()}`;
+                                     nameEl.classList.remove('text-gray-500');
+                                     nameEl.classList.add('text-primary');
+                                 }
+
+                                 // 2. Update Sidebar (FIX: Missing Sync)
+                                 const sidebarName = document.getElementById('sidebar-server-name');
+                                 if (sidebarName) sidebarName.innerText = data.ServerName.toUpperCase();
+
+                                 const sidebarUptime = document.getElementById('sidebar-uptime');
+                                 if (sidebarUptime) sidebarUptime.innerText = data.Uptime || "00:00:00";
+
+                                 // 3. Update Status Badge (FIX: Missing Sync & Normalize to prevent spaces/special character crashes)
+                                 const statusText = document.getElementById('status-text');
+                                 const statusBadge = document.getElementById('status-badge-container');
+                                 if (statusText && data.ServerStatus) {
+                                     const statusValue = data.ServerStatus.toLowerCase();
+                                     let cssStatus = 'stopped';
+                                     
+                                     if (statusValue.includes('run') || statusValue.includes('online')) {
+                                         cssStatus = 'running';
+                                     } else if (statusValue.includes('start') || statusValue.includes('restart')) {
+                                         cssStatus = 'starting';
+                                     } else if (statusValue.includes('stopping')) {
+                                         cssStatus = 'stopping';
+                                     } else if (statusValue.includes('update') || statusValue.includes('check') || statusValue.includes('download') || statusValue.includes('install')) {
+                                         cssStatus = 'updating';
+                                     } else if (statusValue.includes('error') || statusValue.includes('fail')) {
+                                         cssStatus = 'error';
+                                     } else if (statusValue.includes('stop') || statusValue.includes('off')) {
+                                         cssStatus = 'stopped';
+                                     }
+                                     
+                                     const statusKey = `status_${cssStatus}`;
+                                     statusText.setAttribute('data-i18n', statusKey);
+                                     
+                                     if (data.ServerStatus.includes('%') || data.ServerStatus.includes(':')) {
+                                         statusText.innerText = data.ServerStatus.toUpperCase();
+                                     } else {
+                                         const localizedStatus = (translations[currentLang] && translations[currentLang][statusKey]) 
+                                                                  ? translations[currentLang][statusKey] 
+                                                                  : data.ServerStatus;
+                                         statusText.innerText = localizedStatus;
+                                     }
+                                     
+                                     if (statusBadge) {
+                                         statusBadge.className = 'status-badge flex-shrink-0'; // Reset base
+                                         statusBadge.classList.add(`status-${cssStatus}-badge`);
+                                     }
+                                 }
+                             }       
+                             const pingStat = document.getElementById('stat-ping');
+                             if (data.Ping > 150) pingStat.className = "text-xs font-black text-red-500 leading-none";
+                             else if (data.Ping > 80) pingStat.className = "text-xs font-black text-yellow-500 leading-none";
+                             else pingStat.className = "text-xs font-black text-green-500 leading-none";
+
+                             this.updateCharts(
+                                 data.CpuHistory || [], 
+                                 data.RamHistory || [], 
+                                 data.NetworkHistory || [],
+                                 data.PlayerHistory || [],
+                                 data.FpsHistory || [],
+                                 data.EntitiesHistory || [],
+                                 data.PingHistory || []
+                             );
+
+                         });
+                    }
+                },
+
+                initCharts() {
+
+                    Chart.defaults.color = '#ffffff';
+
+                    Chart.defaults.font.family = "'Outfit', sans-serif";
+
+                    const createChart = (id, color, max) => {
+
+                        const ctx = document.getElementById(id).getContext('2d');
+
+                        return new Chart(ctx, {
+
+                            type: 'line',
+
+                            data: { labels: Array(60).fill(''), datasets: [{ data: Array(60).fill(0), borderColor: color, borderWidth: 1.5, tension: 0.2, pointRadius: 0 }] },
+
+                            options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }, scales: { x: { display: false }, y: { display: false, min: 0, max: max } }, plugins: { legend: { display: false }, tooltip: { enabled: false } }, layout: { padding: 0 } }
+
+                        });
+
+                    };
+
+                    telemetryCharts.cpu = createChart('chart-cpu-new', '#eab308', 100);
+                    telemetryCharts.ram = createChart('chart-ram-new', '#06b6d4', null);
+                    telemetryCharts.net = createChart('chart-net-new', '#a855f7', null);
+                    telemetryCharts.players = createChart('chart-players', '#ef4444', null);
+                    telemetryCharts.fps = createChart('chart-fps', '#f59e0b', null);
+                    telemetryCharts.entities = createChart('chart-entities', '#3b82f6', null);
+                    telemetryCharts.ping = createChart('chart-ping', '#22c55e', null);
+                },
+
+                updateCharts(cpuHistory, ramHistory, netHistory, playersHistory, fpsHistory, entitiesHistory, pingHistory) {
+                    const updateDataset = (chart, history) => {
+                        if (chart && history && history.length > 0) {
+                            chart.data.datasets[0].data = history;
+                            chart.update('none');
+                        }
+                    };
+
+                    updateDataset(telemetryCharts.cpu, cpuHistory);
+                    updateDataset(telemetryCharts.ram, ramHistory);
+                    updateDataset(telemetryCharts.net, netHistory);
+                    updateDataset(telemetryCharts.players, playersHistory);
+                    updateDataset(telemetryCharts.fps, fpsHistory);
+                    updateDataset(telemetryCharts.entities, entitiesHistory);
+                    updateDataset(telemetryCharts.ping, pingHistory);
+                }
+
+            }));
+
+        });
+
+        // --- RCON CONSOLE BRIDGE ---
+
+        let currentLogFilter = 'all';
+
+        const MAX_LOGS = 500;
+
+        let consoleLogsCache = [];
+
+        function switchFilter(filter, el) {
+
+            currentLogFilter = filter;
+
+            document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+
+            if(el) el.classList.add('active');
+
+            renderConsoleLogs();
+
+        }
+
+        function renderConsoleLogs() {
+
+            const out = document.getElementById('console-output');
+
+            if (!out) return;
+
+            // Generate HTML string for all visible logs
+
+            let html = '';
+
+            for (let i = 0; i < consoleLogsCache.length; i++) {
+
+                const log = consoleLogsCache[i];
+
+                const levelLower = (log.level || 'System').toLowerCase();
+
+                if (currentLogFilter !== 'all' && levelLower !== currentLogFilter) continue;
+
+                const now = new Date(log.timestamp || Date.now());
+                const ts = `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
+
+                html += `<div class="log-${levelLower} mb-1">${ts} ${escapeHtml(log.message)}</div>`;
+
+            }
+
+            out.innerHTML = html || '<div class="text-white/20 italic">No logs matched filter.</div>';
+
+            if (isAutoScroll) {
+
+                out.scrollTop = out.scrollHeight;
+
+            }
+
+        }
+
+        function escapeHtml(unsafe) {
+
+            return (unsafe || '').replace(/&/g, "&amp;")
+
+                 .replace(/</g, "&lt;")
+
+                 .replace(/>/g, "&gt;")
+
+                 .replace(/"/g, "&quot;")
+
+                 .replace(/'/g, "&#039;");
+
+        }
+
+        function runAudit() {
+            const modal = document.getElementById('security-modal');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.remove('scale-95');
+            
+            document.getElementById('audit-summary').innerText = "AI Sentinel анализирует последние 100 строк логов...";
+            document.getElementById('audit-findings').innerHTML = "";
+            document.getElementById('audit-recommendations').innerHTML = "";
+
+            safePostMessage({ action: "run_log_audit" });
+        }
+
+        async function updateSecurityUI(report) {
+            if (!report) return;
+            
+            const risk = await report.RiskLevel;
+            const badge = document.getElementById('audit-risk-badge');
+            badge.innerText = `RISK: ${risk}`;
+            badge.className = `text-[8px] font-bold px-2 py-0.5 mt-1 inline-block uppercase ${
+                risk === 'Critical' ? 'bg-red-600 text-white' : 
+                risk === 'High' ? 'bg-orange-600 text-white' : 
+                risk === 'Medium' ? 'bg-yellow-600 text-black' : 'bg-green-600 text-white'
+            }`;
+
+            document.getElementById('audit-summary').innerText = await report.Summary;
+            
+            const findings = await report.Findings;
+            document.getElementById('audit-findings').innerHTML = (await Promise.all(findings.map(async f => `
+                <div class="p-2 bg-white/5 border border-white/5">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-black text-red-500 uppercase text-[8px] tracking-widest">${await f.Type}</span>
+                        <span class="text-[8px] px-1 bg-white/10 text-white/40">${await f.Severity}</span>
+                    </div>
+                    <div class="text-white/80">${await f.Description}</div>
+                </div>
+            `))).join('');
+
+            const recs = await report.Recommendations;
+            document.getElementById('audit-recommendations').innerHTML = recs.map(r => `
+                <div class="flex items-start space-x-2">
+                    <i class="fas fa-check-circle mt-1"></i>
+                    <span>${r}</span>
+                </div>
+            `).join('');
+        }
+
+        function closeSecurityModal() {
+            const modal = document.getElementById('security-modal');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.add('scale-95');
+        }
+
+        if (window.chrome && window.chrome.webview) {
+            window.chrome.webview.addEventListener('message', event => {
+
+            const msg = event.data;
+
+            if (msg.type === 'log_sync') {
+
+                try {
+
+                    const logs = JSON.parse(msg.data);
+
+                    consoleLogsCache = logs;
+
+                    renderConsoleLogs();
+
+                } catch(e) { console.error(e); }
+
+            } else if (msg.type === 'log_audit_complete') {
+                updateSecurityUI(msg.report);
+            }
+
+            if (msg.type === 'batch_log') {
+
+                const newLogs = msg.logs;
+
+                consoleLogsCache = consoleLogsCache.concat(newLogs);
+
+                if (consoleLogsCache.length > MAX_LOGS) {
+
+                    consoleLogsCache = consoleLogsCache.slice(consoleLogsCache.length - MAX_LOGS);
+
+                }
+
+                renderConsoleLogs();
+
+            }
+
+            });
+        }
+
+</script>
+
+    <!-- GLOBAL SEARCH MODAL (Ctrl+K) -->
+    <div id="search-modal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-xl opacity-0 pointer-events-none transition-all duration-300">
+        <div class="w-[600px] glass rounded-none border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden scale-95 transition-transform duration-300">
+            <div class="h-16 flex items-center px-6 border-b border-white/5 bg-white/2">
+                <i class="fas fa-search text-white/20 mr-4"></i>
+                <input type="text" id="global-search-input" placeholder="Поиск (настройки, игроки, логи, плагины)..." data-i18n-placeholder="placeholder_search" class="flex-1 bg-transparent border-none outline-none text-sm font-bold placeholder:text-white/10 uppercase tracking-widest">
+                <div class="px-2 py-1 bg-white/5 border border-white/10 text-[8px] font-black text-white/30 uppercase tracking-widest">ESC</div>
+            </div>
+            <div id="search-results" class="max-h-[400px] overflow-y-auto p-4 space-y-2">
+                <div class="text-center py-10 text-white/10 text-[10px] font-black uppercase tracking-widest">Введите запрос для поиска...</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification-container" class="fixed top-24 right-8 w-80 z-[1000] flex flex-col pointer-events-none"></div>
+
+    <!-- 9. MODAL: CUSTOM CONFIRMATION (PREMIUM OVERLAY) -->
+    <div id="custom-confirm-modal" class="fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md opacity-0 invisible pointer-events-none transition-all duration-300">
+        <div class="glass w-full max-w-sm rounded-none overflow-hidden border border-red-500/30 shadow-[0_0_50px_rgba(255,0,0,0.3)] transform scale-90 transition-transform duration-300" id="confirm-modal-content">
+            <div class="p-6 space-y-6">
+                <div class="flex items-center space-x-4">
+                    <div class="w-10 h-10 rounded-none bg-red-600/20 flex items-center justify-center border border-red-600/40">
+                        <i class="fas fa-exclamation-triangle text-red-500 text-sm"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xs font-black text-red-500 tracking-wider uppercase" id="confirm-modal-title">Подтверждение</h3>
+                    </div>
+                </div>
+                <p class="text-[10px] font-bold text-white/80 leading-relaxed uppercase tracking-tight" id="confirm-modal-message"></p>
+                <div class="flex space-x-3 pt-2">
+                    <button onclick="handleCustomConfirm(false)" class="flex-1 h-10 rounded-none border border-white/10 hover:border-white/20 text-[9px] font-black text-white/60 hover:text-white uppercase transition-colors">
+                        Отмена
+                    </button>
+                    <button onclick="handleCustomConfirm(true)" class="flex-1 h-10 rounded-none bg-gradient-to-r from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 text-[9px] font-black text-white uppercase shadow-[0_0_15px_rgba(255,0,0,0.2)] hover:shadow-[0_0_25px_rgba(255,0,0,0.4)] transition-all">
+                        Да, продолжить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>
+

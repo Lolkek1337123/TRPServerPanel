@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <script>
+        if (window.self !== window.top) {
+            document.documentElement.classList.add('in-iframe');
+            document.addEventListener('DOMContentLoaded', () => {
+                document.body.classList.add('in-iframe');
+            });
+            
+            // Inside iframe we MUST use window.parent.postMessage wrapper to send messages to C#,
+            // and we MUST override/mock window.chrome.webview to route through window.parent.
+            const target = new EventTarget();
+            const mockWebview = {
+                postMessage: function(msg) {
+                    window.parent.postMessage({ action: "forward_to_csharp", payload: msg }, "*");
+                },
+                addEventListener: function(type, listener) {
+                    target.addEventListener(type, listener);
+                },
+                removeEventListener: function(type, listener) {
+                    target.removeEventListener(type, listener);
+                },
+                dispatchEvent: function(event) {
+                    target.dispatchEvent(event);
+                }
+            };
+            
+            try {
+                Object.defineProperty(window, 'chrome', {
+                    value: { webview: mockWebview },
+                    writable: true,
+                    configurable: true
+                });
+            } catch (e) {
+                window.chrome = { webview: mockWebview };
+            }
+            
+            window.addEventListener('message', event => {
+                if (event.source === window.parent) {
+                    if (event.data) {
+                        try {
+                            const newEvent = new MessageEvent('message', {
+                                data: event.data
+                            });
+                            window.chrome.webview.dispatchEvent(newEvent);
+                        } catch (e) {
+                            console.error('Error dispatching message event:', e);
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+
+    
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TRP SERVER PANEL | SYSTEM HUB</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="theme.css">
+
+    <script defer src="js/alpine.min.js"></script>
+
+</head>
+
+<body class="p-4">
+
+    <div class="flex flex-col h-full space-y-6">
+
+        <!-- Header / Navigation -->
+
+        <header class="h-16 flex items-center px-6 justify-between border-b border-white/5 bg-black/20 glass flex-shrink-0" onmousedown="onDrag(event)">
+
+            <div class="flex items-center space-x-6">
+
+                <button onclick="window.parent.postMessage({action:'close_subpage'},'*')" class="w-10 h-10  glass flex items-center justify-center hover:bg-white/10 transition-all text-gray-500 hover:text-white" title="Вернуться на главную">
+
+                    <i class="fas fa-arrow-left"></i>
+
+                </button>
+
+                <div>
+
+                    <h2 class="text-xl font-black italic tracking-tighter uppercase text-primary pixel-font text-primary">System <span class="text-white">Hub</span></h2>
+
+                    <p class="text-[8px] font-black tracking-[0.5em] text-white/20 uppercase">TRP Centralized Control</p>
+
+                </div>
+
+            </div>
+
+            <nav class="flex space-x-2">
+
+                <div onclick="switchTab('info')" id="tab-info" class="tab-btn active" data-i18n="tab_about">О программе</div>
+
+                <div onclick="switchTab('settings')" id="tab-settings" class="tab-btn" data-i18n="tab_settings">Управление</div>
+
+                <div onclick="switchTab('help')" id="tab-help" class="tab-btn" data-i18n="tab_help">Помощь</div>
+
+            </nav>
+
+        </header>
+
+        <!-- Content Area -->
+
+        <main class="flex-1 overflow-y-auto">
+
+            <!-- TAB: INFO (О ПРОГРАММЕ) -->
+
+            <div id="content-info" class="w-full max-w-5xl mx-auto space-y-12">
+
+                <div class="text-center space-y-6 mb-16">
+
+                    <div class="relative inline-block">
+
+                        <div class="absolute -inset-10 bg-[var(--primary-glow)] blur-3xl  pulse opacity-10"></div>
+
+                        <h1 class="text-7xl font-black italic tracking-tighter text-primary uppercase leading-none pixel-font text-primary">
+
+                            TRP <span class="text-white">Server</span> Panel
+
+                        </h1>
+
+                        <p class="text-[10px] font-black tracking-[0.8em] text-gray-500 uppercase mt-4">
+                            Orchestrator Engine Hybrid // Nemotron Enhanced
+                        </p>
+
+                    </div>
+
+                </div>
+
+                <div class="grid grid-cols-2 gap-6">
+
+                    <!-- Orchestrator Box -->
+
+                    <div class="section-card space-y-4">
+
+                        <div class="flex items-center space-x-4 mb-2">
+
+                            <div class="w-10 h-10  bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20">
+
+                                <i class="fas fa-microchip"></i>
+
+                            </div>
+
+                            <h3 class="text-sm font-black italic uppercase pixel-font">Core Orchestrator</h3>
+
+                        </div>
+
+                        <p class="text-[11px] text-white/40 leading-relaxed" data-i18n="desc_core">
+
+                            Ядро системы, отвечающее за запуск сервера, автоматическое восстановление при крашах и управление процессом RustDedicated.exe. Содержит встроенную систему валидации портов и путей.
+
+                        </p>
+
+                    </div>
+
+                    <!-- AI Shield Box -->
+
+                    <div class="section-card space-y-4">
+
+                        <div class="flex items-center space-x-4 mb-2">
+
+                            <div class="w-10 h-10  bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20">
+
+                                <i class="fas fa-shield-alt"></i>
+
+                            </div>
+
+                            <h3 class="text-sm font-black italic uppercase pixel-font">TRP AI Shield</h3>
+
+                        </div>
+
+                        <p class="text-[11px] text-white/40 leading-relaxed" data-i18n="desc_shield">
+
+                            Уникальная система безопасности на базе Nemotron 120B. Проверяет плагины на наличие скрытых WebRequests, бэкдоров и кражи RCON. Позволяет мгновенно исправлять уязвимости в коде.
+
+                        </p>
+
+                    </div>
+
+                    <!-- Monitoring Box -->
+
+                    <div class="section-card space-y-4">
+
+                        <div class="flex items-center space-x-4 mb-2">
+
+                            <div class="w-10 h-10  bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20">
+
+                                <i class="fas fa-chart-line"></i>
+
+                            </div>
+
+                            <h3 class="text-sm font-black italic uppercase pixel-font">Live Monitoring</h3>
+
+                        </div>
+
+                        <p class="text-[11px] text-white/40 leading-relaxed" data-i18n="desc_monitoring">
+
+                            Система телеметрии в реальном времени. Отслеживает нагрузку на CPU, RAM и активность игровых потоков через RCON-мост собственной разработки.
+
+                        </p>
+
+                    </div>
+
+                    <!-- Marketplace Box -->
+
+                    <div class="section-card space-y-4">
+
+                        <div class="flex items-center space-x-4 mb-2">
+
+                            <div class="w-10 h-10  bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20">
+
+                                <i class="fas fa-store"></i>
+
+                            </div>
+
+                            <h3 class="text-sm font-black italic uppercase pixel-font">Integrated Marketplace</h3>
+
+                        </div>
+
+                        <p class="text-[11px] text-white/40 leading-relaxed" data-i18n="desc_market">
+
+                            Единая точка доступа к плагинам uMod и эксклюзивам TRP. Автоматическая установка с определением фреймворка (Oxide/Carbon) и загрузкой зависимых библиотек.
+
+                        </p>
+
+                    </div>
+
+                </div>
+
+                <div class="flex space-x-4 pt-8">
+
+                    <button class="flex-1 h-14  bg-white/5 border border-white/5 text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">Support Center</button>
+
+                    <button class="flex-1 h-14  bg-white/5 border border-white/5 text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all">Official Documentation</button>
+
+                </div>
+
+            </div>
+
+            <!-- TAB: SETTINGS (УПРАВЛЕНИЕ) -->
+
+            <div id="content-settings" class="w-full max-w-5xl mx-auto grid grid-cols-2 gap-16 hidden">
+
+                <!-- Left: Themes -->
+
+                <div class="space-y-6">
+
+                    <h3 class="text-[11px] font-black text-white/30 uppercase tracking-[0.4em] mb-4 pixel-font">Themes / Темы оформления</h3>
+
+                    <div class="grid grid-cols-5 gap-3">
+
+                        <!-- Blood & Flame -->
+
+                        <div onclick="setTheme('blood')" id="theme-blood" class="theme-card">
+
+                            <div class="w-full h-12 bg-gradient-to-br from-red-600 to-red-900  mb-2"></div>
+
+                            <span class="text-[8px] font-black uppercase tracking-tighter">Blood</span>
+
+                        </div>
+
+                        <!-- Cyber Mint -->
+
+                        <div onclick="setTheme('cyber')" id="theme-cyber" class="theme-card">
+
+                            <div class="w-full h-12 bg-gradient-to-br from-emerald-500 to-emerald-900  mb-2"></div>
+
+                            <span class="text-[8px] font-black uppercase tracking-tighter">Cyber</span>
+
+                        </div>
+
+                        <!-- Void Blue -->
+
+                        <div onclick="setTheme('void')" id="theme-void" class="theme-card">
+
+                            <div class="w-full h-12 bg-gradient-to-br from-blue-600 to-blue-950  mb-2"></div>
+
+                            <span class="text-[8px] font-black uppercase tracking-tighter">Void</span>
+
+                        </div>
+
+                        <!-- Golden Dust -->
+
+                        <div onclick="setTheme('gold')" id="theme-gold" class="theme-card">
+
+                            <div class="w-full h-12 bg-gradient-to-br from-amber-400 to-amber-700  mb-2"></div>
+
+                            <span class="text-[8px] font-black uppercase tracking-tighter">Gold</span>
+
+                        </div>
+
+                        <!-- Neon Purple -->
+
+                        <div onclick="setTheme('purple')" id="theme-purple" class="theme-card">
+
+                            <div class="w-full h-12 bg-gradient-to-br from-purple-500 to-purple-900  mb-2"></div>
+
+                            <span class="text-[8px] font-black uppercase tracking-tighter">Purple</span>
+
+                        </div>
+
+                        <!-- Arctic Blizzard -->
+
+                        <div onclick="setTheme('arctic')" id="theme-arctic" class="theme-card">
+
+                            <div class="w-full h-12 bg-gradient-to-br from-cyan-300 to-cyan-600  mb-2"></div>
+
+                            <span class="text-[8px] font-black uppercase tracking-tighter">Arctic</span>
+
+                        </div>
+
+                        <!-- Toxic Waste -->
+
+                        <div onclick="setTheme('toxic')" id="theme-toxic" class="theme-card">
+
+                            <div class="w-full h-12 bg-gradient-to-br from-lime-400 to-lime-900  mb-2"></div>
+
+                            <span class="text-[8px] font-black uppercase tracking-tighter">Toxic</span>
+
+                        </div>
+
+                        <!-- Sunset Pink -->
+
+                        <div onclick="setTheme('sunset')" id="theme-sunset" class="theme-card">
+
+                            <div class="w-full h-12 bg-gradient-to-br from-pink-500 to-rose-700  mb-2"></div>
+
+                            <span class="text-[8px] font-black uppercase tracking-tighter">Sunset</span>
+
+                        </div>
+
+                        <!-- Deep Indigo -->
+
+                        <div onclick="setTheme('indigo')" id="theme-indigo" class="theme-card">
+
+                            <div class="w-full h-12 bg-gradient-to-br from-indigo-600 to-indigo-950  mb-2"></div>
+
+                            <span class="text-[8px] font-black uppercase tracking-tighter">Indigo</span>
+
+                        </div>
+
+                        <!-- Silver Steel -->
+
+                        <div onclick="setTheme('silver')" id="theme-silver" class="theme-card">
+
+                            <div class="w-full h-12 bg-gradient-to-br from-gray-400 to-gray-700  mb-2"></div>
+
+                            <span class="text-[8px] font-black uppercase tracking-tighter">Silver</span>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <!-- Right: App Logic Control -->
+
+                <div class="space-y-8">
+
+                    <h3 class="text-[11px] font-black text-white/30 uppercase tracking-[0.4em] mb-6 pixel-font">System Control / Управление</h3>
+
+                    <div class="glass  p-8 space-y-6">
+
+                        <!-- AutoRun -->
+
+                        <div class="flex items-center justify-between">
+
+                            <div class="flex items-center space-x-4">
+
+                                <i class="fas fa-rocket text-white/20"></i>
+
+                                <div>
+
+                                    <span class="block text-[10px] font-black uppercase text-white/80" data-i18n="sett_autorun">Launch with Windows</span>
+
+                                    <span class="text-[8px] text-white/20 uppercase font-bold tracking-widest">АВТОЗАПУСК ПРИ СТАРТЕ ОС</span>
+
+                                </div>
+
+                            </div>
+
+                            <label class="switch">
+
+                                <input type="checkbox" id="check-autorun" onchange="saveAppSettings()">
+
+                                <span class="slider"></span>
+
+                            </label>
+
+                        </div>
+
+                        <!-- Minimize to Tray -->
+
+                        <div class="flex items-center justify-between">
+
+                            <div class="flex items-center space-x-4">
+
+                                <i class="fas fa-window-minimize text-white/20"></i>
+
+                                <div>
+
+                                    <span class="block text-[10px] font-black uppercase text-white/80" data-i18n="sett_tray">Minimize to Tray</span>
+
+                                    <span class="text-[8px] text-white/20 uppercase font-bold tracking-widest">СВОРАЧИВАТЬ В ТРЕЙ</span>
+
+                                </div>
+
+                            </div>
+
+                            <label class="switch">
+
+                                <input type="checkbox" id="check-tray" onchange="saveAppSettings()">
+
+                                <span class="slider"></span>
+
+                            </label>
+
+                        </div>
+
+                        <!-- Notifications -->
+
+                        <div class="flex items-center justify-between">
+
+                            <div class="flex items-center space-x-4">
+
+                                <i class="fas fa-bell text-white/20"></i>
+
+                                <div>
+
+                                    <span class="block text-[10px] font-black uppercase text-white/80" data-i18n="sett_notifs">System Notifications</span>
+
+                                    <span class="text-[8px] text-white/20 uppercase font-bold tracking-widest">УВЕДОМЛЕНИЯ О СОБЫТИЯХ</span>
+
+                                </div>
+
+                            </div>
+
+                            <label class="switch">
+
+                                <input type="checkbox" id="check-notifs" onchange="saveAppSettings()">
+
+                                <span class="slider"></span>
+
+                            </label>
+
+                        </div>
+
+                        <!-- Dark Mode Sync -->
+
+                        <div class="flex items-center justify-between">
+
+                            <div class="flex items-center space-x-4">
+
+                                <i class="fas fa-moon text-white/20"></i>
+
+                                <div>
+
+                                    <span class="block text-[10px] font-black uppercase text-white/80" data-i18n="sett_dark">Glow Intensity</span>
+
+                                    <span class="text-[8px] text-white/20 uppercase font-bold tracking-widest">ЯРКОСТЬ НЕОНОВОЙ ПОДСВЕТКИ</span>
+
+                                </div>
+
+                            </div>
+
+                            <label class="switch">
+
+                                <input type="checkbox" checked onchange="saveAppSettings()">
+
+                                <span class="slider"></span>
+
+                            </label>
+
+                        </div>
+
+                    </div>
+
+                    <button onclick="saveAppSettings()" class="w-full h-14  bg-primary text-[10px] font-black uppercase tracking-[0.2em] shadow-primary  cyber-btn  active:scale-95 transition-all">Применить настройки</button>
+
+                </div>
+
+            </div>
+
+            <!-- TAB: HELP (ПОМОЩЬ) -->
+
+            <div id="content-help" class="w-full max-w-5xl mx-auto space-y-10 hidden">
+
+                <!-- Section: Knowledge Categories -->
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                    <!-- Marketplace help -->
+
+                    <div class="section-card border-l-4 border-l-red-500/50">
+
+                        <div class="flex items-center space-x-4 mb-4">
+
+                            <div class="w-10 h-10  bg-red-500/10 flex items-center justify-center text-red-500">
+
+                                <i class="fas fa-shopping-bag"></i>
+
+                            </div>
+
+                            <h3 class="text-sm font-black uppercase italic pixel-font" data-i18n="help_marketplace_title">Маркетплейс и Обновления</h3>
+
+                        </div>
+
+                        <p class="text-[11px] text-white/50 leading-relaxed space-y-2">
+
+                            <span class="block" data-i18n="help_marketplace_desc">Наша система объединяет плагины uMod и GitHub. Мы отслеживаем версии через файл installed_plugins.json.</span>
+
+                            <span class="block mt-2 text-primary font-bold" data-i18n="help_marketplace_backup">ПРИ ОБНОВЛЕНИИ ПАНЕЛЬ СОЗДАЁТ БЭКАП .OLD ДЛЯ БЕЗОПАСНОСТИ.</span>
+
+                        </p>
+
+                    </div>
+
+                    <!-- Analytics help -->
+
+                    <div class="section-card border-l-4 border-l-blue-500/50">
+
+                        <div class="flex items-center space-x-4 mb-4">
+
+                            <div class="w-10 h-10  bg-blue-500/10 flex items-center justify-center text-blue-500">
+
+                                <i class="fas fa-database"></i>
+
+                            </div>
+
+                            <h3 class="text-sm font-black uppercase italic pixel-font" data-i18n="help_analytics_title">Аналитика Zero-Plugin</h3>
+
+                        </div>
+
+                        <p class="text-[11px] text-white/50 leading-relaxed" data-i18n="help_analytics_desc">
+
+                            Панель читает статистику напрямую из базы данных SQLite сервера. Нам не нужны плагины внутри игры для сбора базовой аналитики, что экономит ресурсы вашего сервера.
+
+                        </p>
+
+                    </div>
+
+                    <!-- security help -->
+
+                    <div class="section-card border-l-4 border-l-emerald-500/50">
+
+                        <div class="flex items-center space-x-4 mb-4">
+
+                            <div class="w-10 h-10  bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+
+                                <i class="fas fa-user-shield"></i>
+
+                            </div>
+
+                            <h3 class="text-sm font-black uppercase italic pixel-font" data-i18n="help_security_title">ИИ-Защита (AI Shield)</h3>
+
+                        </div>
+
+                        <p class="text-[11px] text-white/50 leading-relaxed" data-i18n="help_security_desc">
+
+                            Сканер анализирует C# код на подозрительные вызовы. Используйте кнопку 'Исправить через ИИ' для автоматического патча небезопасного кода.
+
+                        </p>
+
+                    </div>
+
+                    <!-- config help -->
+
+                    <div class="section-card border-l-4 border-l-purple-500/50">
+
+                        <div class="flex items-center space-x-4 mb-4">
+
+                            <div class="w-10 h-10  bg-purple-500/10 flex items-center justify-center text-purple-500">
+
+                                <i class="fas fa-file-code"></i>
+
+                            </div>
+
+                            <h3 class="text-sm font-black uppercase italic pixel-font" data-i18n="help_config_title">Управление Конфигами</h3>
+
+                        </div>
+
+                        <p class="text-[11px] text-white/50 leading-relaxed" data-i18n="help_config_desc">
+
+                            Все настройки плагинов находятся в папке config. При сохранении файла через панель, плагин автоматически перезагрузится на сервере.
+
+                        </p>
+
+                    </div>
+
+                </div>
+
+                <!-- Section: FAQ Items -->
+
+                <div class="space-y-6 pt-6 border-t border-white/5">
+
+                    <h3 class="text-[10px] font-black text-white/20 uppercase tracking-[0.5em] mb-4 text-center pixel-font">База Знаний / Documentation</h3>
+
+                    <div class="grid grid-cols-1 gap-6">
+
+                        <!-- Path mapping documentation -->
+
+                        <div class="section-card bg-black/40">
+
+                            <h4 class="text-xs font-black uppercase text-primary mb-3"><i class="fas fa-folder-open mr-2"></i> Структура папок и ГДЕ ЧТО МЕНЯТЬ</h4>
+
+                            <div class="grid grid-cols-3 gap-4 text-[10px] text-white/40">
+
+                                <div class="space-y-1">
+
+                                    <span class="text-white font-bold block italic uppercase">/plugins</span>
+
+                                    <p>Здесь лежат .cs файлы. Добавьте файл сюда, и он автоматически загрузится.</p>
+
+                                </div>
+
+                                <div class="space-y-1">
+
+                                    <span class="text-white font-bold block italic uppercase">/config</span>
+
+                                    <p>JSON настройки. Каждый плагин создает свой файл настроек здесь.</p>
+
+                                </div>
+
+                                <div class="space-y-1">
+
+                                    <span class="text-white font-bold block italic uppercase">/data</span>
+
+                                    <p>Базы данных плагинов. Здесь хранятся экономики, уровни и история.</p>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <!-- Technical Logic description -->
+
+                        <div class="section-card bg-black/40">
+
+                            <h4 class="text-xs font-black uppercase text-primary mb-3"><i class="fas fa-microchip mr-2"></i> КАК ЭТО РАБОТАЕТ</h4>
+
+                            <p class="text-[10px] text-white/50 leading-relaxed italic">
+
+                                Панель TRP использует гибридную архитектуру. Интерфейс на HTML/JS взаимодействует с системным ядром на C# через высокоскоростной мост. 
+
+                                <br><br>
+
+                                <b>Чтение данных (Analytics):</b> Мы используем <code>journal_mode=OFF</code> для доступа к SQLite файлам Rust (deaths.db, identities.db) в режиме 'ReadOnly'. Это позволяет избежать блокировки базы данных игрой.
+
+                                <br><br>
+
+                                <b>Управление (RCON):</b> Панель подключается к серверу по протоколу WebSocket. Если RCON недоступен, команды отправляются напрямую в процесс <code>StandardInput</code>.
+
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                        <div class="faq-item space-y-2">
+
+                            <div class="flex items-center space-x-3 text-red-500">
+
+                                <i class="fas fa-exclamation-triangle text-[10px]"></i>
+
+                                <span class="text-[10px] font-black uppercase">Файлы заблокированы (Access Refused)</span>
+
+                            </div>
+
+                            <p class="text-[9px] text-white/40 leading-relaxed">Если вы видите ошибку 'Access to path is denied', значит процесс Rust или Carbon все еще запущен в фоне. Завершите его через диспетчер задач перед установкой ядра.</p>
+
+                        </div>
+
+                        <div class="faq-item space-y-2">
+
+                            <div class="flex items-center space-x-3 text-blue-500">
+
+                                <i class="fas fa-sync text-[10px]"></i>
+
+                                <span class="text-[10px] font-black uppercase">Обновление Carbon через панель</span>
+
+                            </div>
+
+                            <p class="text-[9px] text-white/40 leading-relaxed">Всегда перезагружайте сервер после установки обновлений в Marketplace. Большинство изменений вступают в силу мгновенно, но ядро требует перезапуска.</p>
+
+                        </div>
+
+                        <div class="faq-item space-y-2">
+
+                            <div class="flex items-center space-x-3 text-emerald-500">
+
+                                <i class="fas fa-shield-virus text-[10px]"></i>
+
+                                <span class="text-[10px] font-black uppercase">Ложные срабатывания AI Shield</span>
+
+                            </div>
+
+                            <p class="text-[10px] text-white/40 leading-relaxed">ИИ может пометить WebRequest как опасный, если он ведет на незнакомый домен. Если вы уверены в плагине - просто проигнорируйте предупреждение в логах.</p>
+
+                        </div>
+
+                        <div class="faq-item space-y-2">
+
+                            <div class="flex items-center space-x-3 text-purple-500">
+
+                                <i class="fas fa-terminal text-[10px]"></i>
+
+                                <span class="text-[10px] font-black uppercase">Пропала консоль приложения</span>
+
+                            </div>
+
+                            <p class="text-[10px] text-white/40 leading-relaxed">Нажмите кнопку 'Логи' в футере приложения. Там отображаются все внутренние запросы между UI и логикой сервера.</p>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </main>
+
+        <footer class="h-10 flex items-center px-12 justify-center text-[9px] font-black text-white/5 uppercase tracking-[0.5em] border-t border-white/5 bg-black/40">
+
+             TRP SYSTEMS // 2026 // ALL RIGHTS RESERVED
+
+        </footer>
+
+    </div>
+
+    <script>
+        function safePostMessage(obj) {
+            if (window.chrome && window.chrome.webview) {
+                try { window.chrome.webview.postMessage(obj); } catch (e) { }
+            }
+        }
+
+        function onDrag(e) {
+            if (e.target.closest('button, input, select, textarea, .no-drag')) return;
+            safePostMessage({ action: "drag" });
+        }
+
+
+        const translations = {
+
+            ru: {
+
+                tab_about: "О программе",
+
+                tab_settings: "Управление",
+
+                tab_help: "Помощь",
+
+                desc_core: "Ядро системы, отвечающее за запуск сервера, автоматическое восстановление при крашах и управление процессом RustDedicated.exe. Содержит встроенную систему валидации портов и путей.",
+
+                desc_shield: "Уникальная система безопасности на базе Nemotron 120B. Проверяет плагины на наличие скрытых WebRequests, бэкдоров и кражи RCON. Позволяет мгновенно исправлять уязвимости в коде.",
+
+                desc_monitoring: "Live-телеметрия нагрузки CPU, RAM и игровых потоков через RCON-мост собственной разработки.",
+
+                desc_market: "Единая точка доступа к плагинам uMod и TRP. Автоматическая установка с определением фреймворка.",
+
+                sett_autorun: "Запуск при старте Windows",
+
+                sett_tray: "Сворачивать в трей",
+
+                sett_notifs: "Системные уведомления",
+
+                sett_dark: "Интенсивность неона",
+
+                help_center: "БАЗА ЗНАНИЙ",
+
+                faq_files_title: "Файлы заблокированы",
+
+                faq_files_desc: "Если панель не может установить Carbon или winhttp.dll, убедитесь, что сервер полностью выключен. Процесс RustDedicated.exe может удерживать файлы даже после закрытия консоли.",
+
+                faq_ai_title: "Как настроить ИИ-агента?",
+
+                faq_ai_desc: "Используйте ключи OpenRouter для доступа к Nemotron 120B. Если в Dashboard горит желтый статус вЂ” проверьте баланс на API ключе.",
+
+                help_marketplace_title: "Маркетплейс и Обновления",
+
+                help_marketplace_desc: "Наша система объединяет плагины uMod и GitHub. Мы отслеживаем версии через файл installed_plugins.json.",
+
+                help_marketplace_backup: "ПРИ ОБНОВЛЕНИИ ПАНЕЛЬ СОЗДАЁТ БЭКАП .OLD ДЛЯ БЕЗОПАСНОСТИ.",
+
+                help_analytics_title: "Аналитика Zero-Plugin",
+
+                help_analytics_desc: "Панель читает статистику напрямую из базы данных SQLite сервера. Нам не нужны плагины внутри игры для сбора аналитики, что экономит ресурсы сервера.",
+
+                help_security_title: "ИИ-Защита (AI Shield)",
+
+                help_security_desc: "Сканер анализирует C# код на подозрительные вызовы. Используйте кнопку 'Исправить через ИИ' для автоматического патча небезопасного кода.",
+
+                help_config_title: "Управление Конфигами",
+
+                help_config_desc: "Все настройки плагинов находятся в папке config. При сохранении файла через панель, плагин автоматически перезагрузится на сервере."
+
+            },
+
+            en: {
+
+                tab_about: "About",
+
+                tab_settings: "Control",
+
+                tab_help: "Help",
+
+                desc_core: "The core engine responsible for server launching, crash recovery, and RustDedicated.exe management. Includes built-in path validation.",
+
+                desc_shield: "Cybersecurity engine powered by Nemotron 120B. Scans plugins for backdoors, hidden web requests, and data theft.",
+
+                desc_monitoring: "Real-time telemetry for CPU and RAM load through proprietary RCON bridge.",
+
+                desc_market: "Unified access to uMod and TRP plugins. One-click install with framework detection.",
+
+                sett_autorun: "Run at Windows startup",
+
+                sett_tray: "Minimize to system tray",
+
+                sett_notifs: "App notifications",
+
+                sett_dark: "Glow Intensity",
+
+                help_center: "HELP CENTER",
+
+                faq_files_title: "Files Locked (Access Refused)",
+
+                faq_files_desc: "Ensure the server is fully shut down before installing Carbon. RustDedicated.exe may hold file locks.",
+
+                faq_ai_title: "How to configure AI Agent?",
+
+                faq_ai_desc: "Use OpenRouter keys for Nemotron 120B. Check API balance if agent status is 'Error'.",
+
+                help_marketplace_title: "Marketplace & Updates",
+
+                help_marketplace_desc: "Unified uMod and GitHub plugin discovery. Versions tracked via installed_plugins.json store.",
+
+                help_marketplace_backup: "AUTO-BACKUP (.OLD) CREATED DURING UPDATES FOR SAFETY.",
+
+                help_analytics_title: "Zero-Plugin Analytics",
+
+                help_analytics_desc: "Native SQLite database reading (deaths.db). No in-game plugin required for core activity tracking.",
+
+                help_security_title: "AI Security Shield",
+
+                help_security_desc: "Static analysis for backdoors and remote calls. Use AI-patching to fix vulnerable code instantly.",
+
+                help_config_title: "Configuration Control",
+
+                help_config_desc: "Manage settings in the config folder. Plugins auto-reload upon save via panel bridge."
+
+            }
+
+        };
+
+        const themes = {
+
+            blood: { primary: '#ff0000', glow: 'rgba(255, 0, 0, 0.5)', primaryRgb: '255, 0, 0' },
+
+            cyber: { primary: '#10b981', glow: 'rgba(16, 185, 129, 0.5)', primaryRgb: '16, 185, 129' },
+
+            void: { primary: '#3b82f6', glow: 'rgba(59, 130, 246, 0.5)', primaryRgb: '59, 130, 246' },
+
+            gold: { primary: '#f59e0b', glow: 'rgba(245, 158, 11, 0.5)', primaryRgb: '245, 158, 11' },
+
+            purple: { primary: '#a855f7', glow: 'rgba(168, 85, 247, 0.5)', primaryRgb: '168, 85, 247' },
+
+            arctic: { primary: '#67e8f9', glow: 'rgba(103, 232, 249, 0.5)', primaryRgb: '103, 232, 249' },
+
+            toxic: { primary: '#a3e635', glow: 'rgba(163, 230, 53, 0.5)', primaryRgb: '163, 230, 53' },
+
+            sunset: { primary: '#f43f5e', glow: 'rgba(244, 63, 94, 0.5)', primaryRgb: '244, 63, 94' },
+
+            indigo: { primary: '#6366f1', glow: 'rgba(99, 102, 241, 0.5)', primaryRgb: '99, 102, 241' },
+
+            silver: { primary: '#94a3b8', glow: 'rgba(148, 163, 184, 0.5)', primaryRgb: '148, 163, 184' }
+
+        };
+
+        let currentLang = localStorage.getItem('trp_lang') || 'ru';
+
+        let currentTheme = localStorage.getItem('trp_theme') || 'blood';
+
+        /** --- THEME ENGINE --- **/
+
+        function setTheme(themeId) {
+
+            currentTheme = themeId;
+
+            const theme = themes[themeId];
+
+            const root = document.documentElement;
+
+            root.style.setProperty('--primary-color', theme.primary);
+
+            root.style.setProperty('--primary-glow', theme.glow);
+
+            root.style.setProperty('--primary-rgb', theme.primaryRgb);
+
+            document.querySelectorAll('.theme-card').forEach(c => c.classList.remove('active'));
+
+            const activeCard = document.getElementById(`theme-${themeId}`);
+
+            if (activeCard) activeCard.classList.add('active');
+
+            localStorage.setItem('trp_theme', themeId);
+
+            // Broadcast to other windows
+
+            if (window.chrome && window.chrome.webview) {
+
+                window.chrome.webview.postMessage({
+
+                    action: "broadcast_theme",
+
+                    theme: theme
+
+                });
+
+            }
+
+        }
+
+        /** --- TAB CONTROLLER --- **/
+
+        function switchTab(tabId) {
+
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+
+            document.getElementById('content-info').classList.add('hidden');
+
+            document.getElementById('content-settings').classList.add('hidden');
+
+            document.getElementById('content-help').classList.add('hidden');
+
+            document.getElementById(`content-${tabId}`).classList.remove('hidden');
+
+        }
+
+        /** --- APP SETTINGS --- **/
+
+        function saveAppSettings() {
+
+            const settings = {
+
+                autorun: document.getElementById('check-autorun').checked,
+
+                tray: document.getElementById('check-tray').checked,
+
+                notifs: document.getElementById('check-notifs').checked,
+
+                theme: currentTheme
+
+            };
+
+            localStorage.setItem('trp_app_settings', JSON.stringify(settings));
+
+            if (window.chrome && window.chrome.webview) {
+
+                window.chrome.webview.postMessage({
+
+                    action: "save_system_settings",
+
+                    payload: settings
+
+                });
+
+            }
+
+        }
+
+        function loadAppSettings() {
+
+            const saved = localStorage.getItem('trp_app_settings');
+
+            if (saved) {
+
+                const settings = JSON.parse(saved);
+
+                document.getElementById('check-autorun').checked = settings.autorun;
+
+                document.getElementById('check-tray').checked = settings.tray;
+
+                document.getElementById('check-notifs').checked = settings.notifs;
+
+            }
+
+        }
+
+        function updateLocalization() {
+
+            const dict = translations[currentLang];
+
+            if (!dict) return;
+
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+
+                const key = el.getAttribute('data-i18n');
+
+                if (dict[key]) el.innerHTML = dict[key];
+
+            });
+
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+
+            currentLang = localStorage.getItem('trp_lang') || 'ru';
+
+            updateLocalization();
+
+            setTheme(currentTheme);
+
+            loadAppSettings();
+
+            if (window.chrome && window.chrome.webview) {
+
+                window.chrome.webview.addEventListener('message', event => {
+
+                    const msg = event.data;
+
+                    if (msg && msg.type === 'language_updated') {
+
+                        currentLang = msg.lang;
+
+                        localStorage.setItem('trp_lang', msg.lang);
+
+                        updateLocalization();
+
+                    }
+
+                });
+
+            }
+
+        });
+
+    </script>
+
+</body>
+
+</html>
+

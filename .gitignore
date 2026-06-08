@@ -1,0 +1,17 @@
+# Build directories
+bin/
+obj/
+compile_check/
+
+# User-specific files
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+.vs/
+
+# Logs and scratch files
+*.log
+scratch/
+boot.log
+github.txt

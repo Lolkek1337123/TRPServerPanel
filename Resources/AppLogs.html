@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <script>
+        if (window.self !== window.top) {
+            document.documentElement.classList.add('in-iframe');
+            document.addEventListener('DOMContentLoaded', () => {
+                document.body.classList.add('in-iframe');
+            });
+            
+            // Inside iframe we MUST use window.parent.postMessage wrapper to send messages to C#,
+            // and we MUST override/mock window.chrome.webview to route through window.parent.
+            const target = new EventTarget();
+            const mockWebview = {
+                postMessage: function(msg) {
+                    window.parent.postMessage({ action: "forward_to_csharp", payload: msg }, "*");
+                },
+                addEventListener: function(type, listener) {
+                    target.addEventListener(type, listener);
+                },
+                removeEventListener: function(type, listener) {
+                    target.removeEventListener(type, listener);
+                },
+                dispatchEvent: function(event) {
+                    target.dispatchEvent(event);
+                }
+            };
+            
+            try {
+                Object.defineProperty(window, 'chrome', {
+                    value: { webview: mockWebview },
+                    writable: true,
+                    configurable: true
+                });
+            } catch (e) {
+                window.chrome = { webview: mockWebview };
+            }
+            
+            window.addEventListener('message', event => {
+                if (event.source === window.parent) {
+                    if (event.data) {
+                        try {
+                            const newEvent = new MessageEvent('message', {
+                                data: event.data
+                            });
+                            window.chrome.webview.dispatchEvent(newEvent);
+                        } catch (e) {
+                            console.error('Error dispatching message event:', e);
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+
+    
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TRP | APP DIAGNOSTICS</title>
+
+    <script src="https://cdn.tailwindcss.com">
+        function safePostMessage(obj) {
+            if (window.chrome && window.chrome.webview) {
+                try { window.chrome.webview.postMessage(obj); } catch (e) { }
+            }
+        }
+
+        function onDrag(e) {
+            if (e.target.closest('button, input, select, textarea, .no-drag')) return;
+            if (window.chrome && window.chrome.webview) {
+                window.chrome.webview.postMessage({ action: "drag" });
+            }
+        }
+</script>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="theme.css">
+
+    <script defer src="js/alpine.min.js"></script>
+
+</head>
+
+<body class="flex flex-col h-screen p-4">
+
+    <!-- Header -->
+
+    <header onmousedown="onDrag(event)" class="h-16 flex-shrink-0 glass flex items-center justify-between px-6 border-b border-white/5 relative overflow-hidden">
+        <div class="flex items-center space-x-6 relative z-10">
+            <button onclick="window.parent.postMessage({action:'close_subpage'},'*')" class="w-10 h-10 glass flex items-center justify-center hover:bg-white/10 transition-all text-gray-500 hover:text-white" title="Назад">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <div class="w-12 h-12 bg-red-600/10 border border-red-500/20 flex items-center justify-center text-red-500 shadow-lg">
+                <i class="fas fa-microchip text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl font-black italic tracking-tighter uppercase neon-text pixel-font text-primary">Application Diagnostics</h1>
+                <p class="text-[9px] text-gray-500 font-bold tracking-[0.3em] uppercase">Real-time internal system monitoring</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3 relative z-10">
+            <div class="flex bg-black/40 p-0.5 border border-white/5">
+                <button onclick="clearLogs()" class="px-3 py-1.5 text-[8px] font-black uppercase tracking-widest hover:text-white transition-colors text-gray-500 flex items-center space-x-2">
+                    <i class="fas fa-trash-alt text-[8px]"></i>
+                    <span>Clear Buffer</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent pointer-events-none"></div>
+
+    </header>
+
+    <!-- Navigation / Filter -->
+
+    <div class="h-10 flex-shrink-0 border-b border-white/5 bg-black/20 flex items-center px-6 justify-between">
+
+        <div class="flex items-center space-x-6">
+
+            <div class="flex items-center space-x-2">
+
+                 <span class="text-[8px] font-black text-gray-500 uppercase">LOG LEVEL:</span>
+
+                 <select id="level-filter" onchange="filterLogs()" class="bg-transparent text-[8px] font-black uppercase text-blue-500 outline-none border-none">
+
+                     <option value="ALL">ALL LEVELS</option>
+
+                     <option value="DEBUG">DEBUG</option>
+
+                     <option value="INFO">INFO</option>
+
+                     <option value="WARN">WARNING</option>
+
+                     <option value="ERROR">ERROR</option>
+
+                 </select>
+
+            </div>
+
+            <div class="h-3 w-[1px] bg-white/5"></div>
+
+            <div class="flex items-center space-x-2">
+
+                 <span class="text-[8px] font-black text-gray-500 uppercase">SEARCH:</span>
+
+                 <input type="text" id="search-input" onkeyup="filterLogs()" placeholder="FILTER MESSAGES..." class="bg-transparent text-[8px] font-black uppercase text-white outline-none border-none w-32 placeholder-gray-700">
+
+            </div>
+
+        </div>
+
+        <div class="flex items-center space-x-4">
+
+             <label class="flex items-center space-x-2 cursor-pointer group">
+
+                  <input type="checkbox" id="auto-scroll" checked class="hidden peer">
+
+                  <div class="w-3 h-3  border border-white/10 flex items-center justify-center peer-checked:bg-blue-500 peer-checked:border-blue-500 transition-all">
+
+                      <i class="fas fa-check text-[6px] text-white"></i>
+
+                  </div>
+
+                  <span class="text-[8px] font-black text-gray-500 group-hover:text-gray-300 uppercase">Auto-Scroll</span>
+
+             </label>
+
+        </div>
+
+    </div>
+
+    <!-- Log Grid -->
+
+    <main class="flex-1 overflow-hidden flex flex-col relative">
+
+        <div class="flex h-8 items-center bg-white/2 border-b border-white/5 px-6 space-x-4 text-[7px] font-black text-gray-600 uppercase tracking-[0.2em]">
+
+            <div class="w-16">TIME</div>
+
+            <div class="w-16">LEVEL</div>
+
+            <div class="w-24">SOURCE</div>
+
+            <div class="flex-1">MESSAGE</div>
+
+        </div>
+
+        <div id="log-list" class="flex-1 overflow-y-auto log-container">
+
+            <!-- Logs appear here -->
+
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+
+    <footer class="h-8 flex-shrink-0 glass border-t border-white/5 flex items-center justify-between px-6">
+
+        <div class="flex items-center space-x-4">
+
+            <div class="flex items-center space-x-2">
+
+                <div class="w-1 h-1  bg-blue-500 animate-pulse"></div>
+
+                <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest">Diagnostic Mode Active</span>
+
+            </div>
+
+        </div>
+
+        <div class="flex items-center space-x-6">
+
+            <div class="flex items-center space-x-2">
+
+                 <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest">BUFFER:</span>
+
+                 <span id="log-count" class="text-[8px] font-black text-white">0</span>
+
+            </div>
+
+        </div>
+
+    </footer>
+
+    <script shadow>
+
+        let logs = [];
+
+        const logList = document.getElementById('log-list');
+
+        function addLog(entry) {
+
+            if (!entry || !entry.Level) return;
+
+            // Safety cast to string in case for some reason numeric enums are sent
+
+            entry.Level = String(entry.Level);
+
+            logs.push(entry);
+
+            if (logs.length > 1000) logs.shift();
+
+            updateLogCount();
+
+            renderLog(entry);
+
+        }
+
+        function renderLog(entry) {
+
+            const levelClass = (entry.Level || "INFO").toLowerCase();
+
+            const badgeClass = `badge-${levelClass}`;
+
+            const html = `
+
+                <div class="log-row flex items-center px-6 py-2 border-b border-white/[0.02] text-[9px]">
+
+                    <div class="w-16 text-gray-600 font-bold">${new Date(entry.Time).toLocaleTimeString()}</div>
+
+                    <div class="w-16">
+
+                        <span class="badge ${badgeClass}">${entry.Level}</span>
+
+                    </div>
+
+                    <div class="w-24 font-black uppercase italic tracking-tighter ${levelClass === 'error' ? 'text-red-500' : 'text-gray-400'}">${entry.Source}</div>
+
+                    <div class="flex-1 font-medium ${levelClass === 'error' ? 'text-red-400' : (levelClass === 'warn' ? 'text-yellow-200' : 'text-gray-300')}">${entry.Message}</div>
+
+                </div>
+
+            `;
+
+            logList.insertAdjacentHTML('beforeend', html);
+
+            // DOM Pruning: Keep only last 1000 rows to prevent memory crashes
+
+            if (logList.children.length > 1000) {
+
+                logList.removeChild(logList.firstElementChild);
+
+            }
+
+            if (document.getElementById('auto-scroll').checked) {
+
+                logList.scrollTop = logList.scrollHeight;
+
+            }
+
+        }
+
+        function updateLogCount() {
+
+            document.getElementById('log-count').innerText = logs.length;
+
+        }
+
+        function clearLogs() {
+
+            logs = [];
+
+            logList.innerHTML = '';
+
+            updateLogCount();
+
+        }
+
+        function filterLogs() {
+
+            const level = document.getElementById('level-filter').value;
+
+            const search = document.getElementById('search-input').value.toLowerCase();
+
+            logList.innerHTML = '';
+
+            logs.forEach(entry => {
+
+                if (level !== 'ALL' && entry.Level !== level) return;
+
+                if (search && !entry.Message.toLowerCase().includes(search) && !entry.Source.toLowerCase().includes(search)) return;
+
+                renderLog(entry);
+
+            });
+
+        }
+
+        if (window.chrome && window.chrome.webview) {
+            window.chrome.webview.addEventListener('message', event => {
+
+                const msg = event.data;
+
+                if (msg.type === 'app_logs_sync') {
+
+                    addLog(msg.entry);
+
+                } else if (msg.type === 'app_logs_initial') {
+
+                    // Clear and bulk add
+
+                    logs = [];
+
+                    logList.innerHTML = '';
+
+                    if (msg.logs && Array.isArray(msg.logs)) {
+
+                        msg.logs.forEach(l => addLog(l));
+
+                    }
+
+                }
+
+            });
+        }
+
+        // Initialize: Request logs from C#
+
+        window.onload = () => {
+
+             if (window.chrome && window.chrome.webview) {
+
+                 window.chrome.webview.postMessage({ action: 'get_app_logs' });
+
+             }
+
+        };
+
+        // Fallback/Bridge test if no logs arrive
+
+        setTimeout(() => {
+
+            if (logs.length === 0) {
+
+                addLog({
+
+                    Time: new Date(),
+
+                    Message: "Diagnostic viewer initialized. Waiting for application events...",
+
+                    Level: "INFO",
+
+                    Source: "SYSTEM"
+
+                });
+
+            }
+
+        }, 1000);
+
+</script>
+
+</body>
+
+</html>

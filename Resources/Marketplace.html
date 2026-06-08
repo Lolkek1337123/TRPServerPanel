@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <script>
+        if (window.self !== window.top) {
+            document.documentElement.classList.add('in-iframe');
+            document.addEventListener('DOMContentLoaded', () => {
+                document.body.classList.add('in-iframe');
+            });
+            
+            // Inside iframe we MUST use window.parent.postMessage wrapper to send messages to C#,
+            // and we MUST override/mock window.chrome.webview to route through window.parent.
+            const target = new EventTarget();
+            const mockWebview = {
+                postMessage: function(msg) {
+                    window.parent.postMessage({ action: "forward_to_csharp", payload: msg }, "*");
+                },
+                addEventListener: function(type, listener) {
+                    target.addEventListener(type, listener);
+                },
+                removeEventListener: function(type, listener) {
+                    target.removeEventListener(type, listener);
+                },
+                dispatchEvent: function(event) {
+                    target.dispatchEvent(event);
+                }
+            };
+            
+            try {
+                Object.defineProperty(window, 'chrome', {
+                    value: { webview: mockWebview },
+                    writable: true,
+                    configurable: true
+                });
+            } catch (e) {
+                window.chrome = { webview: mockWebview };
+            }
+            
+            window.addEventListener('message', event => {
+                if (event.source === window.parent) {
+                    if (event.data) {
+                        try {
+                            const newEvent = new MessageEvent('message', {
+                                data: event.data
+                            });
+                            window.chrome.webview.dispatchEvent(newEvent);
+                        } catch (e) {
+                            console.error('Error dispatching message event:', e);
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRP SERVER PANEL | MARKETPLACE AGGREGATOR</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="theme.css">
+</head>
+<body class="page-transition">
+    <div class="flex h-screen p-4 space-x-4 overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-64 flex flex-col space-y-4 no-drag">
+            <div class="glass p-4 flex items-center space-x-4" onmousedown="onDrag(event)">
+                <button onclick="window.parent.postMessage({action:'close_subpage'},'*')" class="w-8 h-8 glass flex items-center justify-center hover:bg-white/10 transition-all text-gray-500 hover:text-white" title="Назад">
+                    <i class="fas fa-arrow-left text-xs"></i>
+                </button>
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-store text-lg text-red-600 pointer-events-none"></i>
+                    <h1 class="text-lg font-black italic tracking-tighter pixel-font text-primary pointer-events-none" data-i18n="header_title">МАРКЕТПЛЕЙС</h1>
+                </div>
+            </div>
+
+            <nav class="flex-1 glass  p-4 space-y-2 overflow-y-auto">
+                <div class="sidebar-item active" onclick="switchSource('All', this)">
+                    <div class="flex items-center space-x-4">
+                        <i class="fas fa-th-large text-xs"></i>
+                        <span class="text-[10px] font-black uppercase tracking-widest" data-i18n="source_all">Все источники</span>
+                    </div>
+                </div>
+                <div class="sidebar-item" onclick="switchSource('TRP', this)">
+                    <div class="flex items-center space-x-4">
+                        <i class="fas fa-fire text-xs text-red-500"></i>
+                        <span class="text-[10px] font-black uppercase tracking-widest" data-i18n="source_trp">TRP Premium</span>
+                    </div>
+                </div>
+                <div class="sidebar-item" onclick="switchSource('uMod', this)">
+                    <div class="flex items-center space-x-4">
+                        <i class="fas fa-cloud-download-alt text-xs text-sky-400"></i>
+                        <span class="text-[10px] font-black uppercase tracking-widest" data-i18n="source_umod">uMod Open</span>
+                    </div>
+                </div>
+                <div class="sidebar-item" onclick="switchSource('GitHub', this)">
+                    <div class="flex items-center space-x-4">
+                        <i class="fab fa-github text-xs"></i>
+                        <span class="text-[10px] font-black uppercase tracking-widest" data-i18n="source_github">GitHub Ops</span>
+                    </div>
+                </div>
+                <div class="sidebar-item" onclick="navigateTo('FileExplorer.html')">
+                    <div class="flex items-center space-x-4">
+                        <i class="fas fa-folder-open text-xs text-white/40"></i>
+                        <span class="text-[10px] font-black uppercase tracking-widest" data-i18n="source_files">Проводник</span>
+                    </div>
+                </div>
+                <div class="sidebar-item" onclick="navigateTo('Backups.html')">
+                    <div class="flex items-center space-x-4">
+                        <i class="fas fa-archive text-xs text-white/40"></i>
+                        <span class="text-[10px] font-black uppercase tracking-widest" data-i18n="source_backups">Бэкапы</span>
+                    </div>
+                </div>
+            </nav>
+
+
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col space-y-6">
+            <!-- Top Bar -->
+            <div class="glass p-4  flex items-center justify-between" onmousedown="onDrag(event)">
+                <div class="flex-1 max-w-2xl search-container flex items-center px-4 no-drag">
+                    <i class="fas fa-search text-gray-500 mr-4"></i>
+                    <input type="text" id="market-search-input" 
+                           class="w-full bg-transparent border-none py-3 text-xs font-bold text-white placeholder-gray-600 focus:outline-none" 
+                           data-i18n-placeholder="search_placeholder"
+                           placeholder="ПОИСК ПЛАГИНОВ..."
+                           oninput="handleSearch(this.value)">
+                    <div id="search-spinner" class="hidden ml-2">
+                        <div class="loader w-4 h-4 border-2"></div>
+                    </div>
+                </div>
+
+                <button onclick="checkUpdates()" class="ml-4 h-12 px-6  glass flex items-center space-x-3 hover:bg-white/5 transition-all text-gray-400 hover:text-white no-drag">
+                    <i class="fas fa-sync-alt text-[10px]"></i>
+                    <span class="text-[9px] font-black uppercase tracking-widest" data-i18n="btn_check_updates">Updates</span>
+                </button>
+
+                <div class="flex items-center space-x-4 ml-6">
+                    <div class="flex flex-col items-end">
+                        <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest" data-i18n="label_selected_server">Selected Server</span>
+                        <span id="active-server-name" class="text-[10px] font-bold text-red-500 uppercase" data-i18n="label_none">NONE</span>
+                    </div>
+                    <div class="w-10 h-10  glass flex items-center justify-center">
+                        <i class="fas fa-server text-xs text-gray-400"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div id="market-results" class="flex-1 overflow-y-auto pr-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 no-drag content-start">
+                <!-- Data will be injected here -->
+                <div class="col-span-full flex flex-col items-center justify-center h-full opacity-30 py-20">
+                    <i class="fas fa-search text-6xl mb-6"></i>
+                    <p class="text-xs font-black uppercase tracking-[0.2em]" data-i18n="intro_search">Enter name to start searching</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Global Search Modal (Ctrl+K) -->
+    <div id="search-modal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-xl opacity-0 pointer-events-none transition-all duration-300">
+        <div class="w-[600px] glass rounded-none border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden scale-95 transition-transform duration-300">
+            <div class="h-16 flex items-center px-6 border-b border-white/5 bg-white/2">
+                <i class="fas fa-search text-white/20 mr-4"></i>
+                <input type="text" id="global-search-input" placeholder="Поиск (настройки, игроки, логи, плагины)..." class="flex-1 bg-transparent border-none outline-none text-sm font-bold placeholder:text-white/10 uppercase tracking-widest">
+                <div class="px-2 py-1 bg-white/5 border border-white/10 text-[8px] font-black text-white/30 uppercase tracking-widest">ESC</div>
+            </div>
+            <div id="search-results" class="max-h-[400px] overflow-y-auto p-4 space-y-2">
+                <div class="text-center py-10 text-white/10 text-[10px] font-black uppercase tracking-widest">Введите запрос для поиска...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Audit Modal -->
+    <div id="audit-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center hidden opacity-0 transition-all duration-300">
+        <div class="w-[500px] glass border border-red-500/30 p-8 shadow-2xl transform scale-95 transition-all">
+            <div class="flex items-center space-x-4 mb-6">
+                <div class="w-12 h-12 bg-red-600/20 border border-red-500/40 flex items-center justify-center animate-pulse">
+                    <i class="fas fa-shield-alt text-red-500 text-xl"></i>
+                </div>
+                <div>
+                    <h2 class="text-[14px] font-black uppercase tracking-[0.2em] text-white">AI SHIELD AUDIT</h2>
+                    <p class="text-[8px] font-bold text-red-500 uppercase tracking-widest mt-1">Deep Scan Results</p>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div id="audit-status-badge" class="px-3 py-1 bg-green-600 text-[10px] font-black text-white uppercase tracking-widest inline-block">
+                    [SAFE] VERIFIED
+                </div>
+                
+                <div class="p-4 bg-white/5 border border-white/5 text-[10px] text-gray-400 leading-relaxed italic" id="audit-desc">
+                    No suspicious patterns detected in this plugin's source code.
+                </div>
+
+                <div class="h-[1px] bg-white/10 w-full"></div>
+                
+                <div class="flex justify-between items-center">
+                    <button onclick="closeAuditModal()" class="text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-white transition-colors">Close</button>
+                    <button id="btn-audit-install" class="px-6 py-2 bg-red-600 border border-red-500 text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-900/20">Proceed to Install</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dependency Modal -->
+    <div id="dependency-modal" class="fixed inset-0 z-[100] flex items-center justify-center hidden p-8">
+        <div class="glass w-full max-w-md p-8  border-red-500/30">
+            <div class="flex items-center space-x-4 mb-6">
+                <i class="fas fa-exclamation-triangle text-3xl text-red-500"></i>
+                <h3 class="text-xl font-black italic tracking-tighter" data-i18n="dep_warning_title">DEPENDENCY WARNING</h3>
+            </div>
+            <p class="text-xs text-white/60 font-bold uppercase mb-6 leading-relaxed" data-i18n="dep_warning_desc">This plugin requires the following extensions to work correctly. Would you like to continue installation?</p>
+
+            <div id="missing-deps-list" class="space-y-2 mb-8 max-h-40 overflow-y-auto">
+                <!-- Deps go here -->
+            </div>
+
+            <div class="flex space-x-4">
+                <button onclick="closeDepModal()" class="flex-1 py-4 glass text-[10px] font-black uppercase tracking-widest hover:bg-white/10" data-i18n="btn_cancel">CANCEL</button>
+                <button id="btn-force-install" class="flex-1 py-4 bg-red-600 text-[10px] font-black uppercase tracking-widest hover:bg-red-700 shadow-lg shadow-red-900/40" data-i18n="btn_install_anyway">INSTALL ANYWAY</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function safePostMessage(obj) {
+            if (window.chrome && window.chrome.webview) {
+                try { window.chrome.webview.postMessage(obj); } catch (e) { }
+            }
+        }
+
+        function onDrag(e) {
+            if (e.target.closest('.no-drag') || e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('textarea') || e.target.closest('.tab-btn') || e.target.closest('[onclick]')) return;
+            safePostMessage({ action: "drag" });
+        }
+
+
+        const translations = {
+            ru: {
+                header_title: "МАРКЕТПЛЕЙС",
+                source_all: "Все источники",
+                source_trp: "TRP Premium",
+                source_umod: "uMod Open",
+                source_github: "GitHub Ops",
+                source_codefling: "Codefling",
+                source_files: "Проводник",
+                source_backups: "Бэкапы",
+                label_none: "ОТСУТСТВУЕТ",
+                back_to_dashboard: "Назад на главную",
+                search_placeholder: "ПОИСК ПЛАГИНОВ (НАПРИМЕР: ECONOMICS)...",
+                label_selected_server: "Выбранный сервер",
+                intro_search: "Введите название для начала поиска",
+                no_results: "Плагины не найдены",
+                btn_install: "Установить",
+                status_installing: "УСТАНОВКА...",
+                notif_success_title: "УСПЕШНО",
+                notif_success_text: "Плагин успешно установлен!",
+                notif_error_title: "ОШИБКА",
+                notif_error_text: "Ошибка установки. Проверьте логи.",
+                btn_check_updates: "ОБНОВЛЕНИЯ",
+                btn_update: "ОБНОВИТЬ",
+                badge_installed: "УСТАНОВЛЕНО",
+                badge_update: "ДОСТУПНО ОБНОВЛЕНИЕ",
+                dep_warning_title: "ОШИБКА ЗАВИСИМОСТЕЙ",
+                dep_warning_desc: "Для работы этого плагина необходимы следующие расширения. Продолжить установку?",
+                btn_cancel: "ОТМЕНА",
+                btn_install_anyway: "ВСЁ РАВНО УСТАНОВИТЬ"
+            },
+            en: {
+                header_title: "MARKETPLACE",
+                source_all: "All Sources",
+                source_trp: "TRP Premium",
+                source_umod: "uMod Open",
+                source_github: "GitHub Ops",
+                source_codefling: "Codefling",
+                source_files: "File Explorer",
+                source_backups: "Backups",
+                label_none: "NONE",
+                back_to_dashboard: "Back to Dashboard",
+                search_placeholder: "SEARCH PLUGINS (E.G. ECONOMICS)...",
+                label_selected_server: "Selected Server",
+                intro_search: "Enter name to start searching",
+                no_results: "No plugins found",
+                btn_install: "Install Extension",
+                status_installing: "INSTALLING...",
+                notif_success_title: "SUCCESS",
+                notif_success_text: "Plugin installed successfully!",
+                notif_error_title: "ERROR",
+                notif_error_text: "Install failed. Check logs.",
+                btn_check_updates: "CHECK UPDATES",
+                btn_update: "UPDATE NOW",
+                badge_installed: "INSTALLED",
+                badge_update: "UPDATE AVAILABLE",
+                dep_warning_title: "DEPENDENCY WARNING",
+                dep_warning_desc: "This plugin requires the following extensions to work correctly. Continue?",
+                btn_cancel: "CANCEL",
+                btn_install_anyway: "INSTALL ANYWAY"
+            }
+        };
+
+        let currentLang = localStorage.getItem('trp_lang') || 'ru';
+        let currentSource = 'All';
+        let currentSearch = '';
+        let searchTimeout = null;
+        let currentPlugins = [];
+
+        function updateLocalization() {
+            const dict = translations[currentLang];
+            if (!dict) return;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) el.innerHTML = dict[key];
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (dict[key]) el.placeholder = dict[key];
+            });
+        }
+
+
+        function switchSource(source, el) {
+            currentSource = source;
+            document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+            el.classList.add('active');
+            triggerSearch();
+        }
+
+        function handleSearch(val) {
+            currentSearch = val;
+            if (searchTimeout) clearTimeout(searchTimeout);
+
+            document.getElementById('search-spinner').classList.remove('hidden');
+            searchTimeout = setTimeout(() => {
+                triggerSearch();
+            }, 600);
+        }
+
+        function triggerSearch() {
+            safePostMessage({ 
+                action: "search_plugins", 
+                query: currentSearch, 
+                source: currentSource 
+            });
+        }
+
+        function installPlugin(pluginData, btn) {
+            const dict = translations[currentLang];
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> ${dict.status_installing || "Wait..."}`;
+            btn.classList.add('opacity-50');
+
+            // Step 1: Check Dependencies
+            safePostMessage({ 
+                action: "market_check_dependencies", 
+                plugin: pluginData 
+            });
+        }
+
+        function closeDepModal() {
+            document.getElementById('dependency-modal').classList.add('hidden');
+            triggerSearch(); // Reset buttons
+        }
+
+        function checkUpdates() {
+            document.getElementById('search-spinner').classList.remove('hidden');
+            safePostMessage({ action: "market_check_updates" });
+        }
+
+        function updatePlugin(pluginData, btn) {
+            const dict = translations[currentLang];
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> ...`;
+
+            safePostMessage({ 
+                action: "market_update", 
+                plugin: pluginData 
+            });
+        }
+
+        function installPluginByIndex(index, btn) {
+            installPlugin(currentPlugins[index], btn);
+        }
+
+        function updatePluginByIndex(index, btn) {
+            updatePlugin(currentPlugins[index], btn);
+        }
+
+        function auditPluginByIndex(index) {
+            auditPlugin(currentPlugins[index]);
+        }
+
+        if (window.chrome && window.chrome.webview) {
+            window.chrome.webview.addEventListener('message', event => {
+                const data = event.data;
+                if (!data) return;
+
+                if (data.type === 'language_updated') {
+                    currentLang = data.lang;
+                    localStorage.setItem('trp_lang', data.lang);
+                    updateLocalization();
+                    triggerSearch();
+                    return;
+                }
+
+                if (data.type === 'search_results') {
+                    document.getElementById('search-spinner').classList.add('hidden');
+                    const plugins = typeof data.plugins === 'string' ? JSON.parse(data.plugins) : data.plugins;
+                    renderResults(plugins);
+
+                    const updatesCount = plugins.filter(p => p.HasUpdate).length;
+                    handleUpdateAllBtn(updatesCount, plugins);
+                }
+
+                if (data.type === 'dependency_results') {
+                    const missing = JSON.parse(data.missing);
+                    const plugin = JSON.parse(data.originalRequest);
+
+                    if (missing.length > 0) {
+                        showDependencyModal(missing, plugin);
+                    } else {
+                        // No missing deps, proceed
+                        safePostMessage({ action: "market_install", plugin: plugin });
+                    }
+                }
+
+                if (data.type === 'install_status') {
+                    const dict = translations[currentLang];
+                    if (data.success) {
+                        showToast(dict.notif_success_title || "SUCCESS", dict.notif_success_text || "Action successful");
+                    } else {
+                        showToast(dict.notif_error_title || "ERROR", dict.notif_error_text || "Action failed");
+                    }
+                    triggerSearch();
+                }
+
+                if (data.type === 'server_list_update') {
+                    if (data.ActiveServer) {
+                        document.getElementById('active-server-name').innerText = data.ActiveServer.toUpperCase();
+                    }
+                }
+
+                if (data.type === 'audit_results') {
+                    const badge = document.getElementById('audit-status-badge');
+                    const desc = document.getElementById('audit-desc');
+                    
+                    if (data.safe) {
+                        badge.className = "px-3 py-1 bg-green-600 text-[10px] font-black text-white uppercase tracking-widest inline-block";
+                        badge.innerText = "[SAFE] VERIFIED";
+                    } else {
+                        badge.className = "px-3 py-1 bg-red-600 text-[10px] font-black text-white uppercase tracking-widest inline-block";
+                        badge.innerText = "[DANGEROUS] WARNING";
+                    }
+                    desc.innerText = data.description;
+                }
+            });
+        }
+
+
+        function showDependencyModal(missing, plugin) {
+            const modal = document.getElementById('dependency-modal');
+            const list = document.getElementById('missing-deps-list');
+            list.innerHTML = missing.map(m => `
+                <div class="flex items-center space-x-3 p-3 bg-white/5 border border-white/5">
+                    <i class="fas fa-puzzle-piece text-red-500"></i>
+                    <span class="text-[10px] font-black uppercase tracking-widest">${m}</span>
+                </div>
+            `).join('');
+
+            modal.classList.remove('hidden');
+            document.getElementById('btn-force-install').onclick = () => {
+                modal.classList.add('hidden');
+                safePostMessage({ action: "market_install", plugin: plugin });
+            };
+        }
+
+        function handleUpdateAllBtn(count, plugins) {
+            const checkBtn = document.querySelector('[onclick="checkUpdates()"]');
+            if (count > 0) {
+                checkBtn.innerHTML = `<i class="fas fa-arrow-circle-up text-red-500 animate-bounce"></i> <span class="text-white">${count} UPDATES</span>`;
+                checkBtn.onclick = () => {
+                    const toUpdate = plugins.filter(p => p.HasUpdate);
+                    toUpdate.forEach(p => safePostMessage({ action: "market_update", plugin: p }));
+                    showToast("UPDATING", `Starting bulk update for ${count} plugins...`);
+                };
+            } else {
+                const dict = translations[currentLang];
+                checkBtn.innerHTML = `<i class="fas fa-sync-alt text-[10px]"></i> <span class="text-[9px] font-black uppercase tracking-widest">${dict.btn_check_updates}</span>`;
+                checkBtn.onclick = checkUpdates;
+            }
+        }
+
+        function renderResults(plugins) {
+            currentPlugins = plugins || [];
+            const container = document.getElementById('market-results');
+            const dict = translations[currentLang];
+
+            if (!currentPlugins || currentPlugins.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full flex flex-col items-center justify-center py-20 opacity-30">
+                        <i class="fas fa-ghost text-6xl mb-6"></i>
+                        <p class="text-xs font-black uppercase tracking-[0.2em]">${dict.no_results || "No results found"}</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = currentPlugins.map((p, index) => {
+                const isInstalled = p.IsInstalled;
+                const hasUpdate = p.HasUpdate;
+
+                let btnHtml = "";
+                if (hasUpdate) {
+                    btnHtml = `<button onclick="updatePluginByIndex(${index}, this)" 
+                                class="w-full py-3 bg-red-600 border border-red-500 hover:bg-red-700 transition-all text-[9px] font-black uppercase tracking-widest text-white shadow-lg shadow-red-900/40">
+                                <i class="fas fa-arrow-up mr-2"></i> ${dict.btn_update}
+                               </button>`;
+                } else if (isInstalled) {
+                    btnHtml = `<button disabled class="w-full py-3 bg-white/10 border border-white/5 text-gray-500 text-[9px] font-black uppercase tracking-widest opacity-50">
+                                <i class="fas fa-check mr-2"></i> ${dict.badge_installed}
+                               </button>`;
+                } else {
+                    btnHtml = `
+                    <div class="flex space-x-2 h-11">
+                        <button onclick="installPluginByIndex(${index}, this)" 
+                                class="flex-1 h-full bg-white/5 border border-white/5 hover:bg-red-600 hover:border-red-500 transition-all text-[9px] font-black uppercase tracking-widest flex items-center justify-center">
+                                ${dict.btn_install || "INSTALL"}
+                        </button>
+                        <button onclick="auditPluginByIndex(${index})" 
+                                class="w-11 h-11 bg-white/5 border border-white/5 hover:bg-yellow-600/20 hover:border-yellow-500/50 transition-all flex items-center justify-center group/audit">
+                                <i class="fas fa-shield-alt text-yellow-500 text-xs group-hover/audit:scale-110 transition-transform"></i>
+                        </button>
+                    </div>`;
+                }
+
+                let desc = p.Description || 'No description available.';
+                if (desc.length > 100) {
+                    desc = desc.substring(0, 100) + '...';
+                }
+
+                return `
+                <div class="market-card group">
+                    <div class="w-full h-32 bg-white/5 flex items-center justify-center relative overflow-hidden">
+                        ${p.IconUrl ? `
+                            <img src="${p.IconUrl}" class="w-16 h-16 object-contain z-10 transition-transform group-hover:scale-110" onerror="this.onerror=null; this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');">
+                            <i class="fas fa-puzzle-piece text-4xl text-gray-500 opacity-20 z-10 hidden"></i>
+                        ` : `
+                            <i class="fas fa-puzzle-piece text-4xl text-gray-500 opacity-20 z-10"></i>
+                        `}
+
+                        <!-- AI SHIELD BADGE -->
+                        ${p.SecurityStatus && p.SecurityStatus !== 'Unknown' ? `
+                        <div class="absolute top-4 left-4 flex items-center space-x-1.5 px-2 py-0.5 glass border ${p.SecurityStatus === 'CRITICAL' ? 'border-red-500 text-red-500' : (p.SecurityStatus === 'HIGH' ? 'border-orange-500 text-orange-500' : 'border-green-500 text-green-500')}">
+                            <i class="fas fa-shield-alt text-[8px]"></i>
+                            <span class="text-[7px] font-black uppercase tracking-tighter">${p.SecurityStatus}</span>
+                        </div>` : ''}
+
+                        <div class="absolute top-4 right-4 flex flex-col items-end space-y-2">
+                            <span class="source-badge badge-${p.Source.toLowerCase()}">${p.Source}</span>
+                            ${hasUpdate ? `<span class="px-2 py-1 bg-red-600 text-[6px] font-black text-white animate-pulse">${dict.badge_update}</span>` : ''}
+                        </div>
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                    </div>
+                    <div class="p-6 flex-1 flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <h3 class="text-[11px] font-black uppercase tracking-tighter truncate pr-2 pixel-font" title="${p.Name}">${p.Name}</h3>
+                                <div class="flex flex-col items-end">
+                                    <span class="text-[8px] font-bold text-gray-500">v${p.Version}</span>
+                                    ${p.LocalVersion ? `<span class="text-[6px] text-gray-600 font-bold">LOCAL: v${p.LocalVersion}</span>` : ''}
+                                </div>
+                            </div>
+                            <p class="text-[9px] text-gray-400 leading-relaxed font-bold uppercase mb-4 line-clamp-2">
+                                ${desc}
+                            </p>
+                        </div>
+                        ${btnHtml}
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function auditPlugin(plugin) {
+            const modal = document.getElementById('audit-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.children[0].classList.remove('scale-95');
+            }, 10);
+            
+            document.getElementById('audit-desc').innerText = "AI Shield сканирует исходный код на наличие угроз...";
+            document.getElementById('audit-status-badge').className = "px-3 py-1 bg-yellow-600 text-[10px] font-black text-white uppercase tracking-widest inline-block";
+            document.getElementById('audit-status-badge').innerText = "SCANNING...";
+
+            safePostMessage({ action: "market_audit", plugin: plugin });
+
+            document.getElementById('btn-audit-install').onclick = () => {
+                closeAuditModal();
+                installPlugin(plugin, document.createElement('button')); // Dummy button to avoid null error
+            };
+        }
+
+        function showToast(title, text) {
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-10 right-10 glass p-4  shadow-2xl border-l-4 border-red-500 z-[100] page-transition flex items-center space-x-4 min-w-[300px] no-drag';
+            toast.innerHTML = `
+                <div class="w-10 h-10  bg-red-500/10 flex items-center justify-center text-red-500">
+                    <i class="fas fa-info-circle"></i>
+                </div>
+                <div>
+                    <h4 class="text-[10px] font-black uppercase tracking-widest text-red-500">${title}</h4>
+                    <p class="text-[9px] font-bold text-white/60 uppercase">${text}</p>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(20px)';
+                setTimeout(() => toast.remove(), 500);
+            }, 4000);
+        }
+
+        function applyGlobalTheme() {
+            const themeId = localStorage.getItem('trp_theme') || 'blood';
+            const themes = {
+                blood: { primary: '#ff0000', glow: 'rgba(255, 0, 0, 0.5)', primaryRgb: '255, 0, 0' },
+                cyber: { primary: '#10b981', glow: 'rgba(16, 185, 129, 0.5)', primaryRgb: '16, 185, 129' },
+                void: { primary: '#3b82f6', glow: 'rgba(59, 130, 246, 0.5)', primaryRgb: '59, 130, 246' },
+                gold: { primary: '#f59e0b', glow: 'rgba(245, 158, 11, 0.5)', primaryRgb: '245, 158, 11' },
+                purple: { primary: '#a855f7', glow: 'rgba(168, 85, 247, 0.5)', primaryRgb: '168, 85, 247' },
+                arctic: { primary: '#67e8f9', glow: 'rgba(103, 232, 249, 0.5)', primaryRgb: '103, 232, 249' },
+                toxic: { primary: '#a3e635', glow: 'rgba(163, 230, 53, 0.5)', primaryRgb: '163, 230, 53' },
+                sunset: { primary: '#f43f5e', glow: 'rgba(244, 63, 94, 0.5)', primaryRgb: '244, 63, 94' },
+                indigo: { primary: '#6366f1', glow: 'rgba(99, 102, 241, 0.5)', primaryRgb: '99, 102, 241' },
+                silver: { primary: '#94a3b8', glow: 'rgba(148, 163, 184, 0.5)', primaryRgb: '148, 163, 184' }
+            };
+            const theme = themes[themeId];
+            if (!theme) return;
+            const root = document.documentElement;
+            root.style.setProperty('--primary-color', theme.primary);
+            root.style.setProperty('--primary-glow', theme.glow);
+            root.style.setProperty('--primary-rgb', theme.primaryRgb);
+        }
+
+        function navigateTo(url) {
+            window.location.href = url;
+        }
+
+        // Global Search Logic
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'k') {
+                e.preventDefault();
+                openSearch();
+            }
+            if (e.key === 'Escape') {
+                closeSearch();
+            }
+        });
+
+        function openSearch() {
+            const modal = document.getElementById('search-modal');
+            if (!modal) return;
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.remove('scale-95');
+            document.getElementById('global-search-input').focus();
+        }
+
+        function closeSearch() {
+            const modal = document.getElementById('search-modal');
+            if (!modal) return;
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            modal.children[0].classList.add('scale-95');
+        }
+
+        document.getElementById('global-search-input')?.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const resultsDiv = document.getElementById('search-results');
+            if (!query) {
+                resultsDiv.innerHTML = '<div class="text-center py-10 text-white/10 text-[10px] font-black uppercase tracking-widest">Введите запрос для поиска...</div>';
+                return;
+            }
+
+            const items = [
+                { name: 'Настройки сервера', path: 'Settings.html', icon: 'fa-cog' },
+                { name: 'Плагины', path: 'Plugins.html', icon: 'fa-puzzle-piece' },
+                { name: 'Игроки', path: 'Players.html', icon: 'fa-users' },
+                { name: 'Логи приложения', path: 'AppLogs.html', icon: 'fa-file-alt' },
+                { name: 'Дашборд', path: 'Dashboard.html', icon: 'fa-home' }
+            ];
+
+            const filtered = items.filter(i => i.name.toLowerCase().includes(query));
+            if (filtered.length === 0) {
+                resultsDiv.innerHTML = '<div class="text-center py-10 text-white/10 text-[10px] font-black uppercase tracking-widest">Ничего не найдено</div>';
+            } else {
+                resultsDiv.innerHTML = filtered.map(i => `
+                    <div class="p-3 bg-white/5 hover:bg-red-500/10 border border-white/5 hover:border-red-500/20 cursor-pointer transition-all flex items-center space-x-4 group" onclick="navigateTo('${i.path}')">
+                        <i class="fas ${i.icon} text-red-500 group-hover:scale-110 transition-transform"></i>
+                        <span class="text-[10px] font-black uppercase tracking-widest">${i.name}</span>
+                    </div>
+                `).join('');
+            }
+        });
+
+        function closeAuditModal() {
+            const modal = document.getElementById('audit-modal');
+            modal.classList.add('opacity-0');
+            modal.children[0].classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+            triggerSearch(); // Reset buttons
+        }
+
+        function onDrag(e) {
+            if (e.target.closest('button, input, select, textarea, .no-drag')) return;
+            if (window.chrome && window.chrome.webview) {
+                window.chrome.webview.postMessage({ action: "drag" });
+            }
+        }
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => document.body.classList.add('fade-in'), 100);
+            applyGlobalTheme();
+            updateLocalization();
+            safePostMessage({ action: "get_server_list" }); 
+            triggerSearch(); 
+        });
+    </script>
+</body>
+</html>

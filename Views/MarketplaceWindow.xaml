@@ -1,0 +1,75 @@
+<Window x:Class="TRPServerPanel.Views.MarketplaceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        mc:Ignorable="d"
+        Title="TRP Marketplace" Height="700" Width="1000"
+        WindowStartupLocation="CenterScreen"
+        Background="Transparent"
+        AllowsTransparency="True"
+        WindowStyle="None">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="40" GlassFrameThickness="0" CornerRadius="0" ResizeBorderThickness="8" UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Grid>
+        <Border Margin="15" Background="{StaticResource BackgroundBrush}" 
+                BorderBrush="{StaticResource GlassBorderBrush}" BorderThickness="1" CornerRadius="12">
+            <Border.Effect>
+                <DropShadowEffect Color="#FF0000" BlurRadius="30" ShadowDepth="0" Opacity="0.15"/>
+            </Border.Effect>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="40"/>
+                    <RowDefinition Height="Auto"/> <!-- Search -->
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Header -->
+                <Border Grid.Row="0" Background="#0A0A0A" BorderBrush="{StaticResource GlassBorderBrush}" BorderThickness="0,0,0,1" CornerRadius="12,12,0,0" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                    <Grid Margin="15,0" WindowChrome.IsHitTestVisibleInChrome="True">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="M12 18H6V14h6m9 0V12l-1-5H4l-1 5v2h1v6h10v-6h4v6h2v-6m0-10H4V4h16v2z" 
+                                  Fill="{StaticResource PrimaryBrush}" Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Text="МАРКЕТПЛЕЙС ПЛАГИНОВ" Foreground="White" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                             <Button Style="{StaticResource WindowControlButtonStyle}" Click="Minimize_Click">
+                                <Viewbox Width="10" Height="10">
+                                    <Path Data="M20,14H4V10H20V14Z" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
+                                </Viewbox>
+                            </Button>
+                            <Button Style="{StaticResource WindowControlCloseButtonStyle}" Click="Close_Click">
+                                <Viewbox Width="10" Height="10">
+                                    <Path Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
+                                </Viewbox>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Hybrid WebView Area -->
+                <Grid Grid.Row="1" Grid.RowSpan="2" Margin="1,0,1,1">
+                    <wv2:WebView2 x:Name="MarketBrowser" 
+                                  Source="https://umod.org/plugins" 
+                                  DefaultBackgroundColor="Transparent"
+                                  NavigationStarting="MarketBrowser_NavigationStarting"
+                                  NavigationCompleted="MarketBrowser_NavigationCompleted"/>
+                    
+                    <!-- Loading State -->
+                    <Border x:Name="LoadingOverlay" Background="#0A0A0A" Opacity="0.9" Visibility="Collapsed">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <ProgressBar Style="{StaticResource AntigravityProgressBarStyle}" IsIndeterminate="True" Width="200" Height="4"/>
+                            <TextBlock Text="ЗАГРУЗКА МАРКЕТПЛЕЙСА..." Foreground="White" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,15,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
