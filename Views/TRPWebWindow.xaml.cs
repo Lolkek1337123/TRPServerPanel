@@ -449,6 +449,29 @@ namespace TRPServerPanel.Views
                             });
                         break;
 
+                    case "get_plugin_details":
+                        if (msg.TryGetProperty("slug", out var gdSlug) && msg.TryGetProperty("source", out var gdSource))
+                        {
+                            _ = Dispatcher.InvokeAsync(async () =>
+                            {
+                                string details = await _vm.GetPluginDetailsHtmlAsync(gdSlug.GetString()!, gdSource.GetString()!);
+                                var r = new { type = "plugin_details_result", details = details, slug = gdSlug.GetString() };
+                                PageBrowser?.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(r));
+                            });
+                        }
+                        break;
+
+                    case "umod_login":
+                        _ = Dispatcher.InvokeAsync(() =>
+                        {
+                            var loginWin = new UModLoginWindow();
+                            loginWin.Owner = this;
+                            bool? res = loginWin.ShowDialog();
+                            var r = new { type = "umod_login_result", success = res == true };
+                            PageBrowser?.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(r));
+                        });
+                        break;
+
                     // ── File Explorer ────────────────────────────────────
                     case "get_files":
                         if (msg.TryGetProperty("path", out var pathProp))

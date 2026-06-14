@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -58,17 +59,31 @@ namespace TRPServerPanel.Services
         public string Content { get; set; } = "";
     }
 
+    public class UModManifestPlugin
+    {
+        [JsonPropertyName("title")]
+        public string Title { get; set; } = "";
+        [JsonPropertyName("description")]
+        public string Description { get; set; } = "";
+        [JsonPropertyName("icon")]
+        public string Icon { get; set; } = "";
+        [JsonPropertyName("tags")]
+        public string Tags { get; set; } = "";
+        [JsonPropertyName("url")]
+        public string Url { get; set; } = "";
+        [JsonPropertyName("games")]
+        public List<string> Games { get; set; } = new();
+    }
+
     public class PluginService
     {
         private readonly HttpClient _httpClient;
         private const string UModApi = "https://umod.org/plugins/search.json?categories[]=rust&sort=relevance";
 
-        private List<MarketplacePlugin> _trpTierPlugins = new List<MarketplacePlugin>
-        {
-            new MarketplacePlugin { Name = "AntiCheatCore", Author = "TEAM_RUST_PLUGINS", Version = "3.2.0", Source = "TRP", Description = "Advanced AI-powered protection for high-pop servers.", DownloadUrl = "https://raw.githubusercontent.com/redrust/plugins/main/AntiCheatCore.cs" },
-            new MarketplacePlugin { Name = "EcoSystemV2", Author = "TEAM_RUST_PLUGINS", Version = "1.1.5", Source = "TRP", Description = "Dynamic economy with cross-server sync.", DownloadUrl = "https://raw.githubusercontent.com/redrust/plugins/main/EcoSystemV2.cs" },
-            new MarketplacePlugin { Name = "WorldGen", Author = "TEAM_RUST_PLUGINS", Version = "2.0.0", Source = "TRP", Description = "Custom maps and procedurally optimized seeds.", DownloadUrl = "https://raw.githubusercontent.com/redrust/plugins/main/WorldGen.cs" }
-        };
+        private Dictionary<string, UModManifestPlugin>? _umodManifestCache = null;
+        private DateTime _manifestLastDownloaded = DateTime.MinValue;
+
+        private List<MarketplacePlugin> _trpTierPlugins = new List<MarketplacePlugin>();
 
         private Dictionary<string, InstalledPluginMetadata> _installedMetadata = new();
         private readonly string _metadataPath;
@@ -106,6 +121,98 @@ namespace TRPServerPanel.Services
             catch { }
         }
 
+        private string? ExtractSlugFromUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return null;
+            try
+            {
+                var uri = new Uri(url);
+                var segments = uri.Segments;
+                if (segments.Length > 0)
+                {
+                    return segments[^1].TrimEnd('/');
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private async Task EnsureUModManifestLoadedAsync()
+        {
+            if (_umodManifestCache != null && (DateTime.Now - _manifestLastDownloaded).TotalHours < 12)
+            {
+                return;
+            }
+
+            var appDataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AppData");
+            if (!Directory.Exists(appDataDir)) Directory.CreateDirectory(appDataDir);
+            var manifestPath = Path.Combine(appDataDir, "umod_manifest.json");
+
+            bool fileExists = File.Exists(manifestPath);
+            bool isFresh = fileExists && (DateTime.Now - File.GetLastWriteTime(manifestPath)).TotalHours < 24;
+
+            if (isFresh)
+            {
+                try
+                {
+                    var json = await File.ReadAllTextAsync(manifestPath);
+                    _umodManifestCache = JsonSerializer.Deserialize<Dictionary<string, UModManifestPlugin>>(json);
+                    if (_umodManifestCache != null && _umodManifestCache.Count > 0)
+                    {
+                        _manifestLastDownloaded = File.GetLastWriteTime(manifestPath);
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AppLogService.Log($"[PLUGINS] Error reading cached uMod manifest: {ex.Message}", AppLogLevel.WARN, "SYSTEM");
+                }
+            }
+
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, "https://assets.umod.org/plugins/manifest.json");
+                request.Headers.Add("User-Agent", App.UserAgent);
+                
+                var response = await _httpClient.SendAsync(request);
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    var parsed = JsonSerializer.Deserialize<Dictionary<string, UModManifestPlugin>>(json);
+                    if (parsed != null && parsed.Count > 0)
+                    {
+                        _umodManifestCache = parsed;
+                        _manifestLastDownloaded = DateTime.Now;
+                        await File.WriteAllTextAsync(manifestPath, json);
+                        AppLogService.Log($"[PLUGINS] uMod manifest loaded and cached successfully. Count: {parsed.Count}", AppLogLevel.INFO, "SYSTEM");
+                        return;
+                    }
+                }
+                else
+                {
+                    AppLogService.Log($"[PLUGINS] Failed to fetch uMod manifest: {response.StatusCode}", AppLogLevel.WARN, "SYSTEM");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogService.Log($"[PLUGINS] Error fetching uMod manifest: {ex.Message}", AppLogLevel.WARN, "SYSTEM");
+            }
+
+            if (_umodManifestCache == null && fileExists)
+            {
+                try
+                {
+                    var json = await File.ReadAllTextAsync(manifestPath);
+                    _umodManifestCache = JsonSerializer.Deserialize<Dictionary<string, UModManifestPlugin>>(json);
+                    if (_umodManifestCache != null)
+                    {
+                        _manifestLastDownloaded = File.GetLastWriteTime(manifestPath);
+                    }
+                }
+                catch { }
+            }
+        }
+
         public async Task<List<MarketplacePlugin>> SearchPluginsAsync(string query, string source = "All")
         {
             var results = new List<MarketplacePlugin>();
@@ -121,31 +228,76 @@ namespace TRPServerPanel.Services
             {
                 try
                 {
-                    var url = $"{UModApi}&query={Uri.EscapeDataString(query)}";
-                    var response = await _httpClient.GetStringAsync(url);
-                    var doc = JsonDocument.Parse(response);
-
-                    if (doc.RootElement.TryGetProperty("data", out var data))
+                    await EnsureUModManifestLoadedAsync();
+                    if (_umodManifestCache != null)
                     {
-                        foreach (var item in data.EnumerateArray())
+                        var umodResults = new List<(MarketplacePlugin Plugin, int Score)>();
+                        foreach (var kvp in _umodManifestCache)
                         {
-                            var name = item.GetProperty("name").GetString() ?? "";
-                            var slug = item.GetProperty("slug").GetString() ?? name.ToLower();
-                            results.Add(new MarketplacePlugin
+                            var key = kvp.Key;
+                            var val = kvp.Value;
+                            
+                            bool isCompatible = val.Games != null && val.Games.Any(g => g.Equals("rust", StringComparison.OrdinalIgnoreCase) || g.Equals("universal", StringComparison.OrdinalIgnoreCase));
+                            if (!isCompatible) continue;
+
+                            var name = val.Title;
+                            if (string.IsNullOrEmpty(name)) name = key;
+
+                            var slug = ExtractSlugFromUrl(val.Url) ?? key.ToLower();
+
+                            int score = 0;
+                            if (string.IsNullOrEmpty(query))
                             {
-                                Name = name,
-                                Slug = slug,
-                                Author = item.GetProperty("author").GetString() ?? "Unknown",
-                                Version = item.GetProperty("latest_release_version").GetString() ?? "1.0.0",
-                                Description = item.GetProperty("description").GetString() ?? "",
-                                IconUrl = item.GetProperty("icon_url").GetString() ?? "",
-                                DownloadUrl = $"https://umod.org/plugins/{slug}/download",
-                                Source = "uMod"
-                            });
+                                score = 1;
+                            }
+                            else
+                            {
+                                if (name.Equals(query, StringComparison.OrdinalIgnoreCase) || key.Equals(query, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    score = 100;
+                                }
+                                else if (name.StartsWith(query, StringComparison.OrdinalIgnoreCase) || key.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    score = 80;
+                                    if (name.Contains(" ", StringComparison.Ordinal)) score -= 5; // penalize multi-word a bit to favor exact single word starts
+                                }
+                                else if (name.Contains(query, StringComparison.OrdinalIgnoreCase) || key.Contains(query, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    score = 50;
+                                }
+                                else if (val.Description != null && val.Description.Contains(query, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    score = 20;
+                                }
+                                else if (val.Tags != null && val.Tags.Contains(query, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    score = 10;
+                                }
+                            }
+
+                            if (score > 0)
+                            {
+                                umodResults.Add((new MarketplacePlugin
+                                {
+                                    Name = name,
+                                    Slug = slug,
+                                    Author = "uMod",
+                                    Version = "1.0.0",
+                                    Description = val.Description ?? "",
+                                    IconUrl = val.Icon ?? "",
+                                    DownloadUrl = $"https://umod.org/plugins/{slug}/download",
+                                    Source = "uMod"
+                                }, score));
+                            }
                         }
+
+                        results.AddRange(umodResults.OrderByDescending(r => r.Score).ThenBy(r => r.Plugin.Name).Select(r => r.Plugin));
                     }
                 }
-                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"uMod Search Error: {ex.Message}"); }
+                catch (Exception ex)
+                {
+                    AppLogService.Log($"uMod Search Error: {ex.Message}\n{ex.StackTrace}", AppLogLevel.ERROR, "PLUGINS");
+                }
             }
 
             // 3. GitHub Source (Searching for Rust Plugins)
@@ -179,7 +331,10 @@ namespace TRPServerPanel.Services
                         }
                     }
                 }
-                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"GitHub Search Error: {ex.Message}"); }
+                catch (Exception ex)
+                {
+                    AppLogService.Log($"GitHub Search Error: {ex.Message}\n{ex.StackTrace}", AppLogLevel.ERROR, "PLUGINS");
+                }
             }
 
             // --- Post-Process: Mark Installed ---
@@ -196,9 +351,141 @@ namespace TRPServerPanel.Services
             return results;
         }
 
+        private string GetUModCookiesHeader()
+        {
+            try
+            {
+                var cookiePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AppData", "umod_cookies.json");
+                if (File.Exists(cookiePath))
+                {
+                    var json = File.ReadAllText(cookiePath);
+                    var cookies = JsonSerializer.Deserialize<List<Views.SavedCookie>>(json);
+                    if (cookies != null && cookies.Count > 0)
+                    {
+                        return string.Join("; ", cookies.Select(c => $"{c.Name}={c.Value}"));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogService.Log($"Error reading uMod cookies: {ex.Message}", AppLogLevel.WARN, "PLUGINS");
+            }
+            return "";
+        }
+        public async Task<string> GetPluginDetailsHtmlAsync(string slug, string source)
+        {
+            if (source == "GitHub")
+            {
+                try
+                {
+                    var url = $"https://api.github.com/repos/{slug}/readme";
+                    var request = new HttpRequestMessage(HttpMethod.Get, url);
+                    request.Headers.Add("User-Agent", App.UserAgent);
+                    
+                    var response = await _httpClient.SendAsync(request);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var jsonStr = await response.Content.ReadAsStringAsync();
+                        using var doc = JsonDocument.Parse(jsonStr);
+                        if (doc.RootElement.TryGetProperty("content", out var contentProp))
+                        {
+                            var base64 = contentProp.GetString() ?? "";
+                            base64 = base64.Replace("\n", "").Replace("\r", "");
+                            var bytes = Convert.FromBase64String(base64);
+                            return System.Text.Encoding.UTF8.GetString(bytes);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    return $"Ошибка загрузки README с GitHub: {ex.Message}";
+                }
+                return "README не найден.";
+            }
+            else // uMod
+            {
+                try
+                {
+                    var url = $"https://umod.org/plugins/{slug}";
+                    var request = new HttpRequestMessage(HttpMethod.Get, url);
+                    var cookies = GetUModCookiesHeader();
+                    if (!string.IsNullOrEmpty(cookies))
+                    {
+                        request.Headers.Add("Cookie", cookies);
+                    }
+                    request.Headers.Add("User-Agent", App.UserAgent);
+
+                    var response = await _httpClient.SendAsync(request);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var html = await response.Content.ReadAsStringAsync();
+                        
+                        var docHtml = "";
+                        var docMatch = Regex.Match(html, @"<(article|section|div)[^>]*?class=""[^""]*?documentation[^""]*?""[^>]*?>(.*?)</\1>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+                        if (docMatch.Success)
+                        {
+                            docHtml = docMatch.Groups[2].Value;
+                        }
+                        
+                        if (string.IsNullOrEmpty(docHtml))
+                        {
+                            var docIdMatch = Regex.Match(html, @"<([a-z0-9]+)[^>]*?id=""documentation""[^>]*?>(.*?)</\1>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+                            if (docIdMatch.Success)
+                            {
+                                docHtml = docIdMatch.Groups[2].Value;
+                            }
+                        }
+
+                        if (string.IsNullOrEmpty(docHtml))
+                        {
+                            var fallbackMatch = Regex.Match(html, @"<section[^>]*?class=""[^""]*?section[^""]*?""[^>]*?>(.*?)</section>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+                            if (fallbackMatch.Success)
+                            {
+                                docHtml = fallbackMatch.Groups[1].Value;
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(docHtml))
+                        {
+                            docHtml = docHtml.Replace("href=\"/", "href=\"https://umod.org/");
+                            docHtml = docHtml.Replace("src=\"/", "src=\"https://umod.org/");
+                            docHtml = docHtml.Replace("href='/", "href='https://umod.org/");
+                            docHtml = docHtml.Replace("src='/", "src='https://umod.org/");
+                            
+                            docHtml = Regex.Replace(docHtml, @"<img\s+", "<img referrerpolicy=\"no-referrer\" ", RegexOptions.IgnoreCase);
+                            
+                            return docHtml;
+                        }
+                    }
+                    else
+                    {
+                        return $"Не удалось загрузить страницу uMod: {response.StatusCode}. Попробуйте авторизоваться.";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    return $"Ошибка загрузки документации: {ex.Message}";
+                }
+                return "Не удалось загрузить документацию.";
+            }
+        }
+
         public async Task<string> DownloadPluginContentAsync(string url)
         {
-            return await _httpClient.GetStringAsync(url);
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            if (url.Contains("umod.org", StringComparison.OrdinalIgnoreCase))
+            {
+                var cookies = GetUModCookiesHeader();
+                if (!string.IsNullOrEmpty(cookies))
+                {
+                    request.Headers.Add("Cookie", cookies);
+                }
+            }
+            request.Headers.Add("User-Agent", App.UserAgent);
+            
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsStringAsync();
         }
 
         public async Task<string> GetMarketplacePluginSourceAsync(MarketplacePlugin plugin)

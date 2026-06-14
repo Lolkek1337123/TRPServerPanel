@@ -282,6 +282,17 @@ namespace TRPServerPanel
                 var env = await App.GetSharedEnvironmentAsync();
                 await MainBrowser.EnsureCoreWebView2Async(env);
                 
+                try
+                {
+                    var uaJson = await MainBrowser.CoreWebView2.ExecuteScriptAsync("navigator.userAgent");
+                    var ua = JsonSerializer.Deserialize<string>(uaJson);
+                    if (!string.IsNullOrEmpty(ua))
+                    {
+                        App.UserAgent = ua;
+                    }
+                }
+                catch { }
+                
                 string resourcesPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources");
                 if (System.IO.Directory.Exists(resourcesPath))
                 {
@@ -846,6 +857,29 @@ namespace TRPServerPanel
                                 }
                             });
                         }
+                        break;
+                    case "get_plugin_details":
+                        if (message.TryGetProperty("slug", out var gdSlug) && message.TryGetProperty("source", out var gdSource))
+                        {
+                            _ = Dispatcher.InvokeAsync(async () =>
+                            {
+                                string details = await _vm.GetPluginDetailsHtmlAsync(gdSlug.GetString()!, gdSource.GetString()!);
+                                var r = new { type = "plugin_details_result", details = details, slug = gdSlug.GetString() };
+                                if (MainBrowser?.CoreWebView2 != null)
+                                    MainBrowser.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(r));
+                            });
+                        }
+                        break;
+                    case "umod_login":
+                        _ = Dispatcher.InvokeAsync(() =>
+                        {
+                            var loginWin = new Views.UModLoginWindow();
+                            loginWin.Owner = this;
+                            bool? res = loginWin.ShowDialog();
+                            var r = new { type = "umod_login_result", success = res == true };
+                            if (MainBrowser?.CoreWebView2 != null)
+                                MainBrowser.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(r));
+                        });
                         break;
                     case "import_server":
                         Dispatcher.Invoke(async () => {

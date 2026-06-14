@@ -20,6 +20,7 @@ public partial class App : System.Windows.Application
 {
     public static IServiceProvider ServiceProvider { get; private set; } = null!;
     public static CoreWebView2Environment? SharedEnvironment { get; private set; }
+    public static string UserAgent { get; set; } = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
     public App()
     {
@@ -33,7 +34,7 @@ public partial class App : System.Windows.Application
         // Network
         services.AddSingleton<System.Net.Http.HttpClient>(sp => {
             var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            client.DefaultRequestHeaders.Add("User-Agent", "TRPServerPanel");
+            client.DefaultRequestHeaders.Add("User-Agent", UserAgent);
             return client;
         });
 

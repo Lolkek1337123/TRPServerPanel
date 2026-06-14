@@ -1566,6 +1566,19 @@ namespace TRPServerPanel.ViewModels
             }
         }
 
+        public async Task<string> GetPluginDetailsHtmlAsync(string slug, string source)
+        {
+            try {
+                AgentStatus = "Fetching details...";
+                var html = await _pluginService.GetPluginDetailsHtmlAsync(slug, source);
+                AgentStatus = "Ready";
+                return html;
+            } catch (Exception ex) {
+                AgentStatus = "Error";
+                return $"<p class='text-red-500'>Ошибка получения описания: {ex.Message}</p>";
+            }
+        }
+
         public async Task<bool> InstallMarketplacePluginAsync(string pluginJson)
         {
             if (SelectedServer == null) {

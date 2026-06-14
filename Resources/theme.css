@@ -821,19 +821,22 @@ aside .tab-btn:hover:not(.active) {
     transform: scaleY(1);
 }
 .market-card {
-    background: rgba(255, 255, 255, 0.015);
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    border-radius: 6px;
+    background: rgba(15, 15, 20, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 0, 0, 0.1);
+    border-radius: 8px;
     overflow: hidden;
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     display: flex;
     flex-direction: column;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
 }
 .market-card:hover {
-    border-color: rgba(255, 0, 0, 0.28);
-    transform: translateY(-4px);
-    background: rgba(255, 0, 0, 0.025);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45), 0 0 20px rgba(255, 0, 0, 0.04);
+    border-color: rgba(255, 0, 0, 0.4);
+    transform: translateY(-4px) scale(1.02);
+    background: rgba(255, 0, 0, 0.03);
+    box-shadow: 0 12px 35px rgba(255, 0, 0, 0.15), 0 0 25px rgba(255, 0, 0, 0.05);
 }
 .source-badge {
     padding: 4px 10px;

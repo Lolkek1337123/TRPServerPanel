@@ -58,6 +58,12 @@ namespace TRPServerPanel.Services
 
             OnLogAdded?.Invoke(entry);
             System.Diagnostics.Debug.WriteLine($"[{level}] [{source}] {message}");
+            try
+            {
+                var logFile = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_debug.log");
+                System.IO.File.AppendAllText(logFile, $"[{DateTime.Now:dd.MM.yyyy HH:mm:ss}] [{level}] [{source}] {message}{Environment.NewLine}");
+            }
+            catch { }
         }
 
         public static void Clear()

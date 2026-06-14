@@ -408,12 +408,6 @@ namespace TRPServerPanel.Services
                             }
                         };
                     }
-
-                    _httpClient.DefaultRequestHeaders.Clear();
-                    _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-                    // Mandatory OpenRouter headers
-                    _httpClient.DefaultRequestHeaders.Add("HTTP-Referer", "https://github.com/TEAM_RUST_PLUGINS/TRPServerPanel");
-                    _httpClient.DefaultRequestHeaders.Add("X-Title", "TRP Server Panel");
                 }
                 else
                 {
@@ -448,8 +442,21 @@ namespace TRPServerPanel.Services
 
                 var json = JsonSerializer.Serialize(requestBody);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
-                
-                var response = await _httpClient.PostAsync(url, content);
+
+                var request = new HttpRequestMessage(HttpMethod.Post, url)
+                {
+                    Content = content
+                };
+
+                if (isOpenRouter)
+                {
+                    request.Headers.Add("Authorization", $"Bearer {apiKey}");
+                    // Mandatory OpenRouter headers
+                    request.Headers.Add("HTTP-Referer", "https://github.com/TEAM_RUST_PLUGINS/TRPServerPanel");
+                    request.Headers.Add("X-Title", "TRP Server Panel");
+                }
+
+                var response = await _httpClient.SendAsync(request);
                 
                 if (response.IsSuccessStatusCode)
                 {
