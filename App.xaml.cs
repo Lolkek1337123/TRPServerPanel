@@ -161,6 +161,7 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        try { ServiceProvider?.GetRequiredService<RustDatabaseService>()?.ClearCache(); } catch { }
         try { _ = ServiceProvider?.GetRequiredService<RconService>()?.DisconnectAsync(); } catch { }
         base.OnExit(e);
         Environment.Exit(0);

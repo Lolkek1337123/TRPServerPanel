@@ -44,10 +44,25 @@ namespace TRPServerPanel.Services
                 await Task.Run(() =>
                 {
                     using var zip = ZipFile.Open(filePath, ZipArchiveMode.Create, System.Text.Encoding.UTF8);
-                    var files = Directory.GetFiles(serverPath, "*.*", SearchOption.AllDirectories)
-                        .Where(f => !f.EndsWith(".log", StringComparison.OrdinalIgnoreCase) && 
-                                    !f.Contains("steamapps") && 
-                                    !f.Contains(".zip"));
+                    var activeServerRoot = Directory.Exists(Path.Combine(serverPath, "rustds"))
+                        ? Path.Combine(serverPath, "rustds")
+                        : serverPath;
+
+                    var foldersToBackup = new[] { "oxide", "carbon", "server" };
+                    var files = new List<string>();
+
+                    foreach (var folder in foldersToBackup)
+                    {
+                        var targetFolder = Path.Combine(activeServerRoot, folder);
+                        if (Directory.Exists(targetFolder))
+                        {
+                            files.AddRange(Directory.GetFiles(targetFolder, "*.*", SearchOption.AllDirectories)
+                                .Where(f => !f.EndsWith(".log", StringComparison.OrdinalIgnoreCase) && !f.Contains(".zip")));
+                        }
+                    }
+
+                    var mainCfg = Path.Combine(serverPath, "trp_config.json");
+                    if (File.Exists(mainCfg)) files.Add(mainCfg);
 
                     foreach (var file in files)
                     {

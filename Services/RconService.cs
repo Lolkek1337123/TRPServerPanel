@@ -221,7 +221,29 @@ namespace TRPServerPanel.Services
 
         public void Dispose()
         {
-            DisconnectAsync().Wait();
+            _cts?.Cancel();
+            if (_webSocket != null)
+            {
+                try
+                {
+                    var ws = _webSocket;
+                    _webSocket = null;
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            if (ws.State == WebSocketState.Open)
+                            {
+                                using var timeout = new CancellationTokenSource(200);
+                                await ws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Disposing", timeout.Token);
+                            }
+                        }
+                        catch {}
+                        finally { try { ws.Dispose(); } catch {} }
+                    });
+                }
+                catch {}
+            }
             _sendSemaphore.Dispose();
         }
     }

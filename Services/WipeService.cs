@@ -35,15 +35,19 @@ namespace TRPServerPanel.Services
                 await _serverManager.StopServerAsync();
 
                 // 3. Wipe Files
-                // Procedural Maps (root directory)
-                var files = Directory.GetFiles(serverPath, "proceduralmap.*", SearchOption.TopDirectoryOnly);
+                var activeServerRoot = Directory.Exists(Path.Combine(serverPath, "rustds"))
+                    ? Path.Combine(serverPath, "rustds")
+                    : serverPath;
+
+                // Procedural Maps (root directory of server core)
+                var files = Directory.GetFiles(activeServerRoot, "proceduralmap.*", SearchOption.TopDirectoryOnly);
                 foreach (var file in files) 
                 {
                     try { File.Delete(file); } catch { }
                 }
 
                 // Save files in identity directory
-                var saveDir = Path.Combine(serverPath, "server", identity);
+                var saveDir = Path.Combine(activeServerRoot, "server", identity);
                 if (Directory.Exists(saveDir))
                 {
                     // Also delete procedural maps in the identity folder if they exist there

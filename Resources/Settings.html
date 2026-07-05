@@ -360,13 +360,15 @@
                         </div>
 
                         <div>
-
                             <label class="cyber-label" data-i18n="label_level_url">Custom Map URL (Level URL)</label>
-
-                            <input type="text" id="cfg-levelurl" class="cyber-input" placeholder="https://...">
-
-                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_level_url">Ссылка на скачивание кастомной карты (.map), созданной в редакторах.</p>
-
+                            <div class="flex space-x-2">
+                                <input type="text" id="cfg-levelurl" class="cyber-input flex-1" placeholder="https://...">
+                                <button onclick="selectLocalMapFile()" class="cyber-btn px-4 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-white text-[10px] font-black uppercase tracking-wider transition-all no-drag flex items-center space-x-1" style="height: 38px;">
+                                    <i class="fas fa-file-import"></i>
+                                    <span data-i18n="btn_select_map">ВЫБРАТЬ .MAP</span>
+                                </button>
+                            </div>
+                            <p class="text-[10px] text-gray-400 font-medium leading-relaxed mt-1" data-i18n="desc_level_url">Ссылка на скачивание кастомной карты (.map), либо выберите локальный .map файл для автоматической установки.</p>
                         </div>
 
                     </div>
@@ -778,6 +780,10 @@
     </div>
 
     <script>
+        function selectLocalMapFile() {
+            safePostMessage({ action: "select_map_file" });
+        }
+
         function safePostMessage(obj) {
             if (window.chrome && window.chrome.webview) {
                 try { window.chrome.webview.postMessage(obj); } catch (e) { }
@@ -910,6 +916,7 @@
                 label_max_conn_ip: "Макс. подключений с одного IP",
 
                 label_level_url: "URL кастомной карты (Level URL)",
+                btn_select_map: "ВЫБРАТЬ .MAP",
 
                 desc_hostname: "Название вашего сервера, которое будет отображаться в глобальном поиске Rust.",
 
@@ -1118,6 +1125,7 @@
                 label_max_conn_ip: "Max Connections Per IP",
 
                 label_level_url: "Custom Map URL (Level URL)",
+                btn_select_map: "SELECT .MAP",
 
                 desc_hostname: "The name of your server that will be visible in the global Rust search list.",
 
@@ -1279,6 +1287,48 @@
                         updateLocalization();
                         renderCliParams();
                         updateCliPreview();
+                        return;
+                    }
+
+                    if (data.type === 'map_file_selected') {
+                        const cfg = data.config;
+                        if (cfg) {
+                            populateFields(cfg);
+                            const mapLevelInput = document.getElementById('cfg-maplevel');
+                            if (mapLevelInput) {
+                                let hasOption = false;
+                                for (let i = 0; i < mapLevelInput.options.length; i++) {
+                                    if (mapLevelInput.options[i].value === data.mapName) {
+                                        hasOption = true;
+                                        break;
+                                    }
+                                }
+                                if (!hasOption) {
+                                    const opt = document.createElement('option');
+                                    opt.value = data.mapName;
+                                    opt.text = data.mapName;
+                                    mapLevelInput.appendChild(opt);
+                                }
+                                mapLevelInput.value = data.mapName;
+                            }
+                            const levelUrlInput = document.getElementById('cfg-levelurl');
+                            if (levelUrlInput) {
+                                levelUrlInput.value = '';
+                            }
+                            updateCliPreview();
+                            
+                            // Show success toast
+                            const toast = document.getElementById('toast');
+                            if (toast) {
+                                const originalText = toast.innerHTML;
+                                toast.innerHTML = currentLang === 'ru' ? 'Кастомная карта успешно установлена!' : 'Custom map installed successfully!';
+                                toast.style.display = 'block';
+                                setTimeout(() => {
+                                    toast.style.display = 'none';
+                                    toast.innerHTML = originalText;
+                                }, 3000);
+                            }
+                        }
                         return;
                     }
 

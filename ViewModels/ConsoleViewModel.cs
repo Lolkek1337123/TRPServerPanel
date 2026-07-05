@@ -91,13 +91,6 @@ namespace TRPServerPanel.ViewModels
             string cleanLog = log.Trim();
             if (cleanLog == "[]" || cleanLog == "{}" || cleanLog == ">>" || cleanLog == ">") return;
 
-            // v16.7: Filter out Telemetry & Status Spam
-            if (cleanLog.StartsWith("{") && (cleanLog.Contains("Hostname") || cleanLog.Contains("EntityCount") || cleanLog.Contains("Framerate"))) return;
-            if (cleanLog.StartsWith("hostname:") || cleanLog.StartsWith("version:") || cleanLog.StartsWith("map :")) return;
-            if (cleanLog.Contains("id name ping connected addr owner")) return;
-            if (System.Text.RegularExpressions.Regex.IsMatch(cleanLog, @"^\d+\s+fps,\s+\d+\s+ents")) return;
-            if (cleanLog.Contains("players :") && cleanLog.Contains("max)")) return;
-
             string compareBasis = System.Text.RegularExpressions.Regex.Replace(
                 cleanLog, 
                 @"^(?:\[?(?:\d{2}/\d{2}(?:/\d{4})?\s+)?\d{1,2}:\d{2}:\d{2}\]?[:\s]*)", 
@@ -106,6 +99,35 @@ namespace TRPServerPanel.ViewModels
             // Remove ANSI escape codes (e.g. colors like \x1B[31m) and normalize for comparison
             string cleanCompare = System.Text.RegularExpressions.Regex.Replace(compareBasis, @"\x1B\[[0-9;]*[a-zA-Z]", "").Trim();
             cleanCompare = System.Text.RegularExpressions.Regex.Replace(cleanCompare, @"\s+", " ").ToLowerInvariant();
+
+            // v16.7 & v16.8: Filter out Telemetry, Status & KeepAlive Spam, write to app log instead of server console
+            string cleanCompareLower = cleanCompare.ToLowerInvariant();
+            bool isFiltered = false;
+
+            if (cleanCompareLower == "keepalive" || 
+                cleanCompareLower == "echo keepalive" || 
+                cleanCompareLower.StartsWith("serverinfo") || 
+                cleanCompareLower.StartsWith("status") ||
+                cleanCompareLower.Contains("active plugins:") ||
+                cleanCompareLower.Contains("slots :") ||
+                cleanCompareLower.Contains("server.hostname") ||
+                cleanCompareLower.Contains("rcon.password") ||
+                (cleanLog.StartsWith("{") && (cleanLog.Contains("Hostname") || cleanLog.Contains("EntityCount") || cleanLog.Contains("Framerate"))) ||
+                cleanLog.StartsWith("hostname:") || 
+                cleanLog.StartsWith("version:") || 
+                cleanLog.StartsWith("map :") ||
+                cleanLog.Contains("id name ping connected addr owner") ||
+                System.Text.RegularExpressions.Regex.IsMatch(cleanLog, @"^\d+\s+fps,\s+\d+\s+ents") ||
+                (cleanLog.Contains("players :") && cleanLog.Contains("max)")))
+            {
+                isFiltered = true;
+            }
+
+            if (isFiltered)
+            {
+                AppLogService.Log($"[RCON FILTERED] {cleanLog}", AppLogLevel.DEBUG, "RCON_INTERNAL");
+                return;
+            }
 
             lock (_logLock)
             {

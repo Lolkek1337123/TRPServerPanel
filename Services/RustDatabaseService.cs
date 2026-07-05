@@ -37,6 +37,29 @@ namespace TRPServerPanel.Services
             catch { }
         }
 
+        public void ClearCache()
+        {
+            try
+            {
+                _snapshotSemaphore.Wait();
+                try
+                {
+                    foreach (var cached in _snapshotCache.Values)
+                    {
+                        if (File.Exists(cached.SnapshotPath)) try { File.Delete(cached.SnapshotPath); } catch { }
+                        if (File.Exists(cached.SnapshotPath + "-wal")) try { File.Delete(cached.SnapshotPath + "-wal"); } catch { }
+                        if (File.Exists(cached.SnapshotPath + "-shm")) try { File.Delete(cached.SnapshotPath + "-shm"); } catch { }
+                    }
+                    _snapshotCache.Clear();
+                }
+                finally
+                {
+                    _snapshotSemaphore.Release();
+                }
+            }
+            catch { }
+        }
+
         private static SqliteCommand CreateCommandWithTimeout(SqliteConnection connection)
         {
             var cmd = connection.CreateCommand();

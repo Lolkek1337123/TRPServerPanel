@@ -61,10 +61,13 @@ namespace TRPServerPanel.ViewModels
         private DateTime _lastPlaytimeUpdate = DateTime.MinValue;
         private DateTime _lastResourcePollTime = DateTime.MinValue;
         private TimeSpan _lastCpuTime = TimeSpan.Zero;
+        private DateTime _lastCpuTimeCheck = DateTime.MinValue;
+        private readonly Process _currentProcess = Process.GetCurrentProcess();
         private ServerModel? _selectedServer;
         private ObservableCollection<ServerModel> _activeServerTabs;
         private DateTime _lastRconErrorTime = DateTime.MinValue;
         private bool _isRconConnecting = false;
+        private DateTime _lastRconConnectAttempt = DateTime.MinValue;
 
         private string _currentLanguage = "ru";
         public string CurrentLanguage
@@ -296,7 +299,7 @@ namespace TRPServerPanel.ViewModels
                 OnPropertyChanged(); 
                 UpdateAvailableCommands();
                 
-                System.Windows.Application.Current.Dispatcher.Invoke(() => {
+                System.Windows.Application.Current.Dispatcher.BeginInvoke(() => {
                     lock (PlayerIdentities)
                     {
                         PlayerIdentities.Clear();
@@ -538,7 +541,7 @@ namespace TRPServerPanel.ViewModels
                 var match = Regex.Match(message, @"\(?(\d+)\s+fps,\s+(\d+)\s+ents\)?(?:\s+(\d+)\s+players)?", RegexOptions.IgnoreCase);
                 if (match.Success)
                 {
-                    System.Windows.Application.Current.Dispatcher.Invoke(() => {
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(() => {
                         if (double.TryParse(match.Groups[1].Value, out double fps))
                             SelectedServer.Fps = (int)fps;
                         if (int.TryParse(match.Groups[2].Value, out int ents))
@@ -576,28 +579,40 @@ namespace TRPServerPanel.ViewModels
                     using (var doc = JsonDocument.Parse(jsonPart))
                     {
                         var root = doc.RootElement;
-                        System.Windows.Application.Current.Dispatcher.Invoke(() => {
-                            // Try multiple property names for compatibility (Carbon/Oxide/Vanilla)
-                            if (root.TryGetProperty("Framerate", out var fps) || root.TryGetProperty("fps", out fps)) 
-                                SelectedServer.Fps = (int)fps.GetDouble();
-                            
-                            if (root.TryGetProperty("EntityCount", out var ent) || root.TryGetProperty("Entities", out ent) || root.TryGetProperty("ents", out ent))
-                                SelectedServer.Entities = ent.ValueKind == JsonValueKind.Number ? ent.GetInt32() : (int.TryParse(ent.GetString(), out var ev) ? ev : 0);
-                            
-                            if (root.TryGetProperty("Players", out var p)) SelectedServer.PlayerCount = p.GetInt32();
-                            if (root.TryGetProperty("MaxPlayers", out var mp)) SelectedServer.MaxPlayers = mp.GetInt32();
-                            
-                            if (root.TryGetProperty("Uptime", out var upt)) {
-                                if (upt.ValueKind == JsonValueKind.Number)
-                                {
-                                    var ts = TimeSpan.FromSeconds(upt.GetInt32());
-                                    SelectedServer.Uptime = $"{(int)ts.TotalHours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}";
-                                }
-                                else if (upt.ValueKind == JsonValueKind.String)
-                                {
-                                    SelectedServer.Uptime = upt.GetString() ?? "00:00:00";
-                                }
+                        
+                        int? fpsVal = null;
+                        if (root.TryGetProperty("Framerate", out var fps) || root.TryGetProperty("fps", out fps)) 
+                            fpsVal = (int)fps.GetDouble();
+
+                        int? entVal = null;
+                        if (root.TryGetProperty("EntityCount", out var ent) || root.TryGetProperty("Entities", out ent) || root.TryGetProperty("ents", out ent))
+                            entVal = ent.ValueKind == JsonValueKind.Number ? ent.GetInt32() : (int.TryParse(ent.GetString(), out var ev) ? ev : 0);
+
+                        int? pVal = null;
+                        if (root.TryGetProperty("Players", out var p)) pVal = p.GetInt32();
+
+                        int? mpVal = null;
+                        if (root.TryGetProperty("MaxPlayers", out var mp)) mpVal = mp.GetInt32();
+
+                        string? uptimeVal = null;
+                        if (root.TryGetProperty("Uptime", out var upt)) {
+                            if (upt.ValueKind == JsonValueKind.Number)
+                            {
+                                var ts = TimeSpan.FromSeconds(upt.GetInt32());
+                                uptimeVal = $"{(int)ts.TotalHours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2}";
                             }
+                            else if (upt.ValueKind == JsonValueKind.String)
+                            {
+                                uptimeVal = upt.GetString() ?? "00:00:00";
+                            }
+                        }
+
+                        _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(() => {
+                            if (fpsVal.HasValue) SelectedServer.Fps = fpsVal.Value;
+                            if (entVal.HasValue) SelectedServer.Entities = entVal.Value;
+                            if (pVal.HasValue) SelectedServer.PlayerCount = pVal.Value;
+                            if (mpVal.HasValue) SelectedServer.MaxPlayers = mpVal.Value;
+                            if (uptimeVal != null) SelectedServer.Uptime = uptimeVal;
 
                             // v16.7: Sync with performance history for charts
                             AddToHistory(SelectedServer.FpsHistory, SelectedServer.Fps);
@@ -634,7 +649,7 @@ namespace TRPServerPanel.ViewModels
             var uptMatch = Regex.Match(response, @"uptime\s*[:\s]\s*(\d+:\d+:\d+|\d+h\d+m\d+s|\d+s|\d+)", RegexOptions.IgnoreCase);
             var plyMatch = Regex.Match(response, @"players\s*[:\s]\s*(\d+)\s*\(([^)]+)\)", RegexOptions.IgnoreCase);
 
-            System.Windows.Application.Current.Dispatcher.Invoke(() => {
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(() => {
                 if (fpsMatch.Success && double.TryParse(fpsMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double fps))
                     SelectedServer.Fps = (int)fps;
                 
@@ -685,7 +700,7 @@ namespace TRPServerPanel.ViewModels
 
                 if (rconPlayers.Any())
                 {
-                    System.Windows.Application.Current.Dispatcher.Invoke(() => {
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(() => {
                         lock (PlayerIdentities)
                         {
                             foreach (var rp in rconPlayers)
@@ -698,9 +713,8 @@ namespace TRPServerPanel.ViewModels
                                 else
                                 {
                                     existing.Ping = rp.Ping; 
-                                    existing.Username = rp.Username;
+                                    existing.LastSeen = rp.LastSeen;
                                     existing.IPAddress = rp.IPAddress;
-                                    existing.LastSeen = DateTime.Now;
                                 }
                             }
                         }
@@ -1205,41 +1219,52 @@ namespace TRPServerPanel.ViewModels
 
                         if (tickCounter % 5 == 0)
                         {
-                            int qPort = SelectedServer.Config?.QueryPort ?? (SelectedServer.Port + 1);
-                            if (qPort == 0) qPort = SelectedServer.Port + 1;
-                            
-                            string queryIp = SelectedServer.Config?.ServerIP ?? "127.0.0.1";
-                            if (queryIp == "0.0.0.0") queryIp = "127.0.0.1";
-
-                            var info = await _a2sService.QueryServerInfoAsync(queryIp, qPort);
-                            if (info != null)
+                            var srv = SelectedServer;
+                            _ = Task.Run(async () =>
                             {
-                                SelectedServer.PlayerCount = info.Players;
-                                SelectedServer.MaxPlayers = info.MaxPlayers;
-                                SelectedServer.Ping = (int)info.Ping;
-                                
-                                AddToHistory(SelectedServer.PlayerHistory, SelectedServer.PlayerCount);
-                                AddToHistory(SelectedServer.PingHistory, SelectedServer.Ping);
-
-                                if (SelectedServer.Status == "Starting...")
+                                try
                                 {
-                                    SelectedServer.Status = "Running";
-                                    OnPropertyChanged(nameof(SelectedServer));
-                                }
-                            }
+                                    int qPort = srv.Config?.QueryPort ?? (srv.Port + 1);
+                                    if (qPort == 0) qPort = srv.Port + 1;
+                                    
+                                    string queryIp = srv.Config?.ServerIP ?? "127.0.0.1";
+                                    if (queryIp == "0.0.0.0") queryIp = "127.0.0.1";
 
-                            // v16.4: RCON telemetry via `serverinfo` & `status`
-                            if (_rconService.IsConnected)
-                            {
-                                await _rconService.SendCommandAsync("serverinfo");
-                                await Task.Delay(500); 
-                                await _rconService.SendCommandAsync("status");
-                            }
-                            else
-                            {
-                                _serverManager.SendCommand("serverinfo");
-                                _serverManager.SendCommand("status");
-                            }
+                                    var info = await _a2sService.QueryServerInfoAsync(queryIp, qPort);
+                                    if (info != null)
+                                    {
+                                        _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+                                        {
+                                            srv.PlayerCount = info.Players;
+                                            srv.MaxPlayers = info.MaxPlayers;
+                                            srv.Ping = (int)info.Ping;
+                                            
+                                            AddToHistory(srv.PlayerHistory, srv.PlayerCount);
+                                            AddToHistory(srv.PingHistory, srv.Ping);
+
+                                            if (srv.Status == "Starting...")
+                                            {
+                                                srv.Status = "Running";
+                                                OnPropertyChanged(nameof(SelectedServer));
+                                            }
+                                        });
+                                    }
+
+                                    // v16.4: RCON telemetry via `serverinfo` & `status`
+                                    if (_rconService.IsConnected)
+                                    {
+                                        await _rconService.SendCommandAsync("serverinfo");
+                                        await Task.Delay(500); 
+                                        await _rconService.SendCommandAsync("status");
+                                    }
+                                    else
+                                    {
+                                        _serverManager.SendCommand("serverinfo");
+                                        _serverManager.SendCommand("status");
+                                    }
+                                }
+                                catch { }
+                            });
                         }
                     }
                 }
@@ -1255,11 +1280,30 @@ namespace TRPServerPanel.ViewModels
         {
             try 
             {
+                if (SelectedServer == null) return;
+
                 // 1. Update Panel's own stats (Self-Monitoring)
-                using (var currentProc = Process.GetCurrentProcess())
+                try
                 {
-                    PanelRam = currentProc.WorkingSet64 / (1024.0 * 1024 * 1024);
+                    _currentProcess.Refresh();
+                    PanelRam = _currentProcess.WorkingSet64 / (1024.0 * 1024 * 1024);
+
+                    var now = DateTime.UtcNow;
+                    var cpuTime = _currentProcess.TotalProcessorTime;
+                    if (_lastCpuTimeCheck != DateTime.MinValue)
+                    {
+                        var timeWindow = now - _lastCpuTimeCheck;
+                        var systemTimeDelta = timeWindow.TotalMilliseconds * Environment.ProcessorCount;
+                        var processTimeDelta = (cpuTime - _lastCpuTime).TotalMilliseconds;
+                        if (systemTimeDelta > 0)
+                        {
+                            PanelCpu = Math.Min(100.0, Math.Max(0.0, (processTimeDelta / systemTimeDelta) * 100.0));
+                        }
+                    }
+                    _lastCpuTime = cpuTime;
+                    _lastCpuTimeCheck = now;
                 }
+                catch { }
 
                 SelectedServer.PanelRam = PanelRam;
                 
@@ -1315,7 +1359,7 @@ namespace TRPServerPanel.ViewModels
                 // Track new server
                 var newServer = new ServerModel { 
                     Name = serverName, 
-                    Path = path, 
+                    Path = Path.Combine(path, serverName), 
                     Status = "Stopped",
                     Port = 28015,
                     ModType = modType
@@ -1611,7 +1655,7 @@ namespace TRPServerPanel.ViewModels
                             risk == "СРЕДНИЙ" ? LogType.Warning : LogType.Error);
                             
                         // Notify UI about security update via event (Decoupled from UI element)
-                        System.Windows.Application.Current.Dispatcher.Invoke(() => {
+                        _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(() => {
                             OnSecurityUpdate?.Invoke(plugin.Name, risk);
                         });
                     });
@@ -2037,7 +2081,9 @@ namespace TRPServerPanel.ViewModels
         private async Task ConnectRconAsync()
         {
             if (SelectedServer?.Config == null || _isRconConnecting) return;
+            if ((DateTime.Now - _lastRconConnectAttempt).TotalSeconds < 5) return;
             
+            _lastRconConnectAttempt = DateTime.Now;
             _isRconConnecting = true;
             try
             {
@@ -2374,7 +2420,7 @@ namespace TRPServerPanel.ViewModels
                 }
 
                 // 5. Update UI Collection
-                System.Windows.Application.Current.Dispatcher.Invoke(() => {
+                _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(() => {
                     lock (PlayerIdentities)
                     {
                         foreach (var dp in players)
@@ -2479,7 +2525,7 @@ namespace TRPServerPanel.ViewModels
                         rconName = dnElem.GetString()!;
 
                     PlayerIdentity? player = null;
-                    System.Windows.Application.Current.Dispatcher.Invoke(() => {
+                    _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(() => {
                         lock (PlayerIdentities)
                         {
                             player = PlayerIdentities.FirstOrDefault(p => p.SteamID == steamId);
@@ -2535,7 +2581,7 @@ namespace TRPServerPanel.ViewModels
 
                 if (listChanged)
                 {
-                    System.Windows.Application.Current.Dispatcher.Invoke(() => PlayerIdentitiesUpdated?.Invoke());
+                    _ = System.Windows.Application.Current.Dispatcher.BeginInvoke(() => PlayerIdentitiesUpdated?.Invoke());
                 }
             }
             catch (Exception ex) { 

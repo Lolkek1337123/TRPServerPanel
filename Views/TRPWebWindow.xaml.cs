@@ -82,7 +82,7 @@ namespace TRPServerPanel.Views
 
         private void OnAppLogAdded(AppLogEntry entry)
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
             {
                 if (PageBrowser?.CoreWebView2 == null) return;
                 var resp = new { type = "app_logs_sync", entry };
@@ -160,7 +160,7 @@ namespace TRPServerPanel.Views
             if (e.Uri.Contains("Dashboard.html", StringComparison.OrdinalIgnoreCase))
             {
                 e.Cancel = true;
-                Dispatcher.Invoke(() =>
+                Dispatcher.BeginInvoke(() =>
                 {
                     this.Close();
                     foreach (Window w in System.Windows.Application.Current.Windows)
@@ -225,26 +225,26 @@ namespace TRPServerPanel.Views
 
                     // ── Window controls ──────────────────────────────────
                     case "minimize":
-                        Dispatcher.Invoke(() => this.WindowState = WindowState.Minimized);
+                        Dispatcher.BeginInvoke(() => this.WindowState = WindowState.Minimized);
                         break;
                     case "maximize":
-                        Dispatcher.Invoke(() =>
+                        Dispatcher.BeginInvoke(() =>
                             this.WindowState = this.WindowState == WindowState.Maximized
                                 ? WindowState.Normal : WindowState.Maximized);
                         break;
                     case "close": case "quit":
-                        Dispatcher.Invoke(() => this.Close());
+                        Dispatcher.BeginInvoke(() => this.Close());
                         break;
                     // Bring main (Dashboard) window to front without closing this page
                     case "focus_main_window":
-                        Dispatcher.Invoke(() =>
+                        Dispatcher.BeginInvoke(() =>
                         {
                             foreach (Window w in System.Windows.Application.Current.Windows)
                                 if (w is MainWindow m) { m.Activate(); m.Focus(); break; }
                         });
                         break;
                     case "drag":
-                        Dispatcher.Invoke(() =>
+                        Dispatcher.BeginInvoke(() =>
                         {
                             try
                             {
@@ -325,7 +325,7 @@ namespace TRPServerPanel.Views
                         break;
 
                     case "sync_logs":
-                        Dispatcher.Invoke(() =>
+                        Dispatcher.BeginInvoke(() =>
                         {
                             var logsJson = _vm.Console.GetConsoleLogsJson();
                             var m2 = new { type = "log_sync", data = logsJson };
@@ -554,7 +554,7 @@ namespace TRPServerPanel.Views
 
                     // ── Settings ──────────────────────────────────────────
                     case "get_server_config":
-                        Dispatcher.Invoke(() =>
+                        Dispatcher.BeginInvoke(() =>
                         {
                             if (PageBrowser?.CoreWebView2 == null || _vm.SelectedServer == null) return;
                             var r = new { type = "force_config_sync", payload = _vm.SelectedServer.Config };
@@ -597,7 +597,7 @@ namespace TRPServerPanel.Views
 
                     // ── App Logs ──────────────────────────────────────────
                     case "get_app_logs":
-                        Dispatcher.Invoke(() =>
+                        Dispatcher.BeginInvoke(() =>
                         {
                             if (PageBrowser?.CoreWebView2 == null) return;
                             var logs = AppLogService.Logs.ToList();
@@ -624,7 +624,7 @@ namespace TRPServerPanel.Views
                     case "select_folder":
                         if (_isSelectingFolder) return;
                         _isSelectingFolder = true;
-                        Dispatcher.Invoke(() =>
+                        Dispatcher.BeginInvoke(() =>
                         {
                             try
                             {

@@ -37,6 +37,19 @@ namespace TRPServerPanel
         // Tracks open secondary page windows (key = page filename, e.g. "Players.html")
         private readonly System.Collections.Generic.Dictionary<string, Views.TRPWebWindow> _pageWindows = new();
 
+        private string _lastServerStatus = string.Empty;
+        private string _lastServerUptime = string.Empty;
+        private int _lastPlayerCount = -1;
+        private double _lastCpuValue = -1.0;
+        private double _lastRamValue = -1.0;
+        private int _lastFps = -1;
+        private int _lastEntities = -1;
+        private int _lastPing = -1;
+        private double _lastPanelCpu = -1.0;
+        private double _lastPanelRam = -1.0;
+        private string _lastInstallStatus = string.Empty;
+        private double _lastInstallProgress = -1.0;
+
         private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = null, // [CRITICAL] Maintain PascalCase for JS compatibility
@@ -60,7 +73,7 @@ namespace TRPServerPanel
             this.DataContext = _vm;
 
             _vm.OnSecurityUpdate += (plugin, risk) => {
-                Dispatcher.Invoke(() => {
+                Dispatcher.BeginInvoke(() => {
                     if (MainBrowser?.CoreWebView2 != null)
                     {
                         var resp = new { type = "security_update", plugin = plugin, risk = risk };
@@ -71,7 +84,7 @@ namespace TRPServerPanel
 
             var notifyService = App.ServiceProvider.GetRequiredService<NotificationService>();
             notifyService.OnNotificationReceived += (n) => {
-                Dispatcher.Invoke(() => {
+                Dispatcher.BeginInvoke(() => {
                     if (MainBrowser?.CoreWebView2 != null)
                     {
                         var resp = new { 
@@ -90,7 +103,7 @@ namespace TRPServerPanel
             this.Closing += MainWindow_Closing;
 
             AppLogService.OnLogAdded += (entry) => {
-                Dispatcher.Invoke(() => {
+                Dispatcher.BeginInvoke(() => {
                     if (MainBrowser?.CoreWebView2 != null)
                     {
                         var resp = new { type = "app_logs_sync", entry = entry };
@@ -169,7 +182,7 @@ namespace TRPServerPanel
 
             _vm.RequestConfigSync += cfg =>
             {
-                Dispatcher.Invoke(() => {
+                Dispatcher.BeginInvoke(() => {
                     if (MainBrowser?.CoreWebView2 != null)
                     {
                         var data = new { type = "force_config_sync", payload = cfg };
@@ -353,8 +366,7 @@ namespace TRPServerPanel
                 currentActive = _vm.SelectedServer?.Name ?? "NONE";
             }
 
-            // v10.4.2: Forcing sync during debug phase to eliminate race conditions
-            if (true) 
+            if (force || currentHash != _lastServersHash || currentActive != _lastSelectedServer) 
             {
                 var listData = new
                 {
@@ -372,34 +384,69 @@ namespace TRPServerPanel
             {
                 try
                 {
-                    var stats = new
+                    string currentStatus = _vm.SelectedServer.Status;
+                    string currentUptime = _vm.GetServerUptime();
+                    int currentPlayers = _vm.SelectedServer.PlayerCount;
+                    double currentCpu = _vm.SelectedServer.CpuHistory.LastOrDefault();
+                    double currentRam = _vm.SelectedServer.RamHistory.LastOrDefault();
+                    int currentFps = _vm.SelectedServer.Fps;
+                    int currentEntities = _vm.SelectedServer.Entities;
+                    int currentPing = _vm.SelectedServer.Ping;
+                    double currentPanelCpu = _vm.PanelCpu;
+                    double currentPanelRam = _vm.PanelRam;
+
+                    if (force ||
+                        currentStatus != _lastServerStatus ||
+                        currentUptime != _lastServerUptime ||
+                        currentPlayers != _lastPlayerCount ||
+                        currentCpu != _lastCpuValue ||
+                        currentRam != _lastRamValue ||
+                        currentFps != _lastFps ||
+                        currentEntities != _lastEntities ||
+                        currentPing != _lastPing ||
+                        currentPanelCpu != _lastPanelCpu ||
+                        currentPanelRam != _lastPanelRam)
                     {
-                        type = "stats_update",
-                        ServerStatus = _vm.SelectedServer.Status,
-                        ServerName = _vm.SelectedServer.Name,
-                        Uptime = _vm.GetServerUptime(),
-                        CpuLoad = _vm.SelectedServer.CpuHistory.LastOrDefault(),
-                        RamUsageValue = _vm.SelectedServer.RamHistory.LastOrDefault(),
-                        PlayerCount = _vm.SelectedServer.PlayerCount,
-                        MaxPlayers = _vm.SelectedServer.MaxPlayers,
-                        Fps = _vm.SelectedServer.Fps,
-                        Entities = _vm.SelectedServer.Entities,
-                        Ping = _vm.SelectedServer.Ping,
-                        Config = _vm.SelectedServer.Config,
-                        CpuHistory = _vm.SelectedServer.CpuHistory.ToArray(),
-                        RamHistory = _vm.SelectedServer.RamHistory.ToArray(),
-                        FpsHistory = _vm.SelectedServer.FpsHistory.ToArray(),
-                        PlayerHistory = _vm.SelectedServer.PlayerHistory.ToArray(),
-                        EntitiesHistory = _vm.SelectedServer.EntitiesHistory.ToArray(),
-                        PingHistory = _vm.SelectedServer.PingHistory.ToArray(),
-                        NetworkUsage = _vm.SelectedServer.NetworkUsage,
-                        NetworkHistory = _vm.SelectedServer.NetworkHistory.ToArray(),
-                        AppUptime = _vm.AppUptime,
-                        PanelCpu = _vm.PanelCpu,
-                        PanelRam = _vm.PanelRam
-                    };
-                    
-                    MainBrowser?.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(stats, _jsonOptions));
+                        var stats = new
+                        {
+                            type = "stats_update",
+                            ServerStatus = currentStatus,
+                            ServerName = _vm.SelectedServer.Name,
+                            Uptime = currentUptime,
+                            CpuLoad = currentCpu,
+                            RamUsageValue = currentRam,
+                            PlayerCount = currentPlayers,
+                            MaxPlayers = _vm.SelectedServer.MaxPlayers,
+                            Fps = currentFps,
+                            Entities = currentEntities,
+                            Ping = currentPing,
+                            Config = _vm.SelectedServer.Config,
+                            CpuHistory = _vm.SelectedServer.CpuHistory.ToArray(),
+                            RamHistory = _vm.SelectedServer.RamHistory.ToArray(),
+                            FpsHistory = _vm.SelectedServer.FpsHistory.ToArray(),
+                            PlayerHistory = _vm.SelectedServer.PlayerHistory.ToArray(),
+                            EntitiesHistory = _vm.SelectedServer.EntitiesHistory.ToArray(),
+                            PingHistory = _vm.SelectedServer.PingHistory.ToArray(),
+                            NetworkUsage = _vm.SelectedServer.NetworkUsage,
+                            NetworkHistory = _vm.SelectedServer.NetworkHistory.ToArray(),
+                            AppUptime = _vm.AppUptime,
+                            PanelCpu = currentPanelCpu,
+                            PanelRam = currentPanelRam
+                        };
+                        
+                        MainBrowser?.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(stats, _jsonOptions));
+
+                        _lastServerStatus = currentStatus;
+                        _lastServerUptime = currentUptime;
+                        _lastPlayerCount = currentPlayers;
+                        _lastCpuValue = currentCpu;
+                        _lastRamValue = currentRam;
+                        _lastFps = currentFps;
+                        _lastEntities = currentEntities;
+                        _lastPing = currentPing;
+                        _lastPanelCpu = currentPanelCpu;
+                        _lastPanelRam = currentPanelRam;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -408,12 +455,17 @@ namespace TRPServerPanel
             }
 
             // 3. Global Installer Stats
-            var installStats = new {
-                type = "install_progress",
-                status = _vm.InstallStatus,
-                progress = _vm.InstallProgress
-            };
-            MainBrowser?.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(installStats));
+            if (force || _vm.InstallStatus != _lastInstallStatus || _vm.InstallProgress != _lastInstallProgress)
+            {
+                var installStats = new {
+                    type = "install_progress",
+                    status = _vm.InstallStatus,
+                    progress = _vm.InstallProgress
+                };
+                MainBrowser?.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(installStats));
+                _lastInstallStatus = _vm.InstallStatus;
+                _lastInstallProgress = _vm.InstallProgress;
+            }
 
             // 4. Commands Data Sync (with Hash to prevent UI flickering)
             string commandsHash = _vm.AvailableCommandsJson;
@@ -453,7 +505,7 @@ namespace TRPServerPanel
                 {
                     case "ready_to_launch":
                         // Welcome screen completed its animations
-                        Dispatcher.Invoke(() => {
+                        Dispatcher.BeginInvoke(() => {
                             if (MainBrowser?.CoreWebView2 != null) {
                                 MainBrowser.Source = new Uri("http://trp.app/Dashboard.html");
                             }
@@ -514,7 +566,7 @@ namespace TRPServerPanel
                         if (_isSelectingFolder) return;
                         _isSelectingFolder = true;
 
-                        Dispatcher.Invoke(() =>
+                        Dispatcher.BeginInvoke(() =>
                         {
                             try
                             {
@@ -542,11 +594,73 @@ namespace TRPServerPanel
                             }
                         });
                         break;
+                    case "select_map_file":
+                        _ = Dispatcher.InvokeAsync(async () => {
+                            if (_vm.SelectedServer == null)
+                            {
+                                _vm.AddLog("[WARN] select_map_file: No server selected.", LogType.Warning);
+                                return;
+                            }
+
+                            var dialog = new Microsoft.Win32.OpenFileDialog
+                            {
+                                Title = "Выберите файл кастомной карты (.map)",
+                                Filter = "Rust Map Files (*.map)|*.map|All Files (*.*)|*.*",
+                                Multiselect = false
+                            };
+
+                            if (dialog.ShowDialog() == true)
+                            {
+                                string selectedFilePath = dialog.FileName;
+                                try
+                                {
+                                    string serverPath = _vm.SelectedServer.Path;
+                                    string mapsDir = Path.Combine(serverPath, "maps");
+                                    if (!Directory.Exists(mapsDir))
+                                    {
+                                        Directory.CreateDirectory(mapsDir);
+                                    }
+
+                                    string fileName = Path.GetFileName(selectedFilePath);
+                                    string targetPath = Path.Combine(mapsDir, fileName);
+
+                                    // Copy the map file to server's maps directory
+                                    File.Copy(selectedFilePath, targetPath, true);
+                                    
+                                    // Update the server configuration
+                                    if (_vm.SelectedServer.Config != null)
+                                    {
+                                        _vm.SelectedServer.Config.MapLevel = "Procedural Map";
+                                        string cleanPath = targetPath.Replace('\\', '/');
+                                        _vm.SelectedServer.Config.LevelUrl = "file:///" + cleanPath;
+                                        await _vm.SaveServerConfigAsync(_vm.SelectedServer.Config);
+                                    }
+
+                                    _vm.AddLog($"[SYSTEM] Кастомная карта '{Path.GetFileNameWithoutExtension(fileName)}' успешно установлена через локальный URL.", LogType.Success);
+                                    
+                                    // Send response back to frontend to update UI
+                                    if (MainBrowser?.CoreWebView2 != null)
+                                    {
+                                        var resp = new { 
+                                            type = "map_file_selected", 
+                                            mapName = "Procedural Map",
+                                            config = _vm.SelectedServer.Config
+                                        };
+                                        MainBrowser.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(resp));
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    _vm.AddLog($"[ERROR] Ошибка при установке кастомной карты: {ex.Message}", LogType.Error);
+                                }
+                            }
+                        });
+                        break;
                     case "minimize":
-                        Dispatcher.Invoke(() => this.WindowState = WindowState.Minimized);
+                        Dispatcher.BeginInvoke(() => this.WindowState = WindowState.Minimized);
                         break;
                     case "maximize":
-                        Dispatcher.Invoke(() => 
+                        Dispatcher.BeginInvoke(() => 
                         {
                             if (this.WindowState == WindowState.Maximized)
                                 this.WindowState = WindowState.Normal;
@@ -556,17 +670,17 @@ namespace TRPServerPanel
                         break;
                     case "close":
                     case "quit":
-                        Dispatcher.Invoke(() => this.Close());
+                        Dispatcher.BeginInvoke(() => this.Close());
                         break;
                     case "confirm_exit":
-                        Dispatcher.Invoke(() => 
+                        Dispatcher.BeginInvoke(() => 
                         {
                             _canClose = true;
                             this.Close();
                         });
                         break;
                     case "exit_confirm_result":
-                        Dispatcher.Invoke(() => 
+                        Dispatcher.BeginInvoke(() => 
                         {
                             bool confirmed = false;
                             if (message.TryGetProperty("result", out var resultProp))
@@ -581,7 +695,7 @@ namespace TRPServerPanel
                         });
                         break;
                     case "drag":
-                        Dispatcher.Invoke(() => 
+                        Dispatcher.BeginInvoke(() => 
                         { 
                             try 
                             { 
@@ -599,7 +713,7 @@ namespace TRPServerPanel
                         break;
                     case "verify":
                         _ = _vm.RunDiagnostics(result => {
-                            Dispatcher.Invoke(() => {
+                            Dispatcher.BeginInvoke(() => {
                                 if (MainBrowser?.CoreWebView2 != null)
                                 {
                                     string jsonResp = JsonSerializer.Serialize(result);
@@ -729,7 +843,7 @@ namespace TRPServerPanel
 
                     case "get_plugin_data":
                         if (message.TryGetProperty("pluginName", out var pdName)) {
-                            Dispatcher.Invoke(async () => {
+                            _ = Dispatcher.InvokeAsync(async () => {
                                 string filesJson = await _vm.GetPluginRelatedFilesAsync(pdName.GetString()!);
                                 var resp = new { type = "plugin_data_results", files = JsonSerializer.Deserialize<JsonElement>(filesJson) };
                                 if (MainBrowser?.CoreWebView2 != null)
@@ -740,7 +854,7 @@ namespace TRPServerPanel
 
                     case "read_plugin_file":
                         if (message.TryGetProperty("path", out var rfPath)) {
-                            Dispatcher.Invoke(async () => {
+                            _ = Dispatcher.InvokeAsync(async () => {
                                 string content = await _vm.ReadPluginFileAsync(rfPath.GetString()!);
                                 var resp = new { type = "file_content_results", content = content, path = rfPath.GetString() };
                                 if (MainBrowser?.CoreWebView2 != null)
@@ -779,7 +893,7 @@ namespace TRPServerPanel
                         if (message.TryGetProperty("name", out var delName))
                         {
                             string nameToDelete = delName.GetString() ?? "";
-                            Dispatcher.Invoke(async () => {
+                            _ = Dispatcher.InvokeAsync(async () => {
                                 await _vm.DeleteServerAsync(nameToDelete);
                                 SyncVmToUi(); // Explicit sync to refresh the list in HUD
                             });
@@ -789,7 +903,7 @@ namespace TRPServerPanel
                         SyncVmToUi(true);
                         break;
                     case "get_audit_plugins":
-                        Dispatcher.Invoke(() => {
+                        Dispatcher.BeginInvoke(() => {
                             if (MainBrowser?.CoreWebView2 != null)
                             {
                                 var plugins = _vm.GetCurrentServerPlugins();
@@ -799,7 +913,7 @@ namespace TRPServerPanel
                         });
                         break;
                     case "get_server_config":
-                        Dispatcher.Invoke(() => {
+                        Dispatcher.BeginInvoke(() => {
                             if (MainBrowser?.CoreWebView2 != null && _vm.SelectedServer != null)
                             {
                                 var resp = new { type = "force_config_sync", payload = _vm.SelectedServer.Config };
@@ -882,7 +996,7 @@ namespace TRPServerPanel
                         });
                         break;
                     case "import_server":
-                        Dispatcher.Invoke(async () => {
+                        _ = Dispatcher.InvokeAsync(async () => {
                             var dialog = new OpenFolderDialog
                             {
                                 Title = "Укажите корневую директорию сервера Rust",
@@ -977,14 +1091,14 @@ namespace TRPServerPanel
                         }
                         break;
                     case "sync_logs":
-                        Dispatcher.Invoke(() => {
+                        Dispatcher.BeginInvoke(() => {
                             var logsJson = _vm.Console.GetConsoleLogsJson();
                             var syncMsg = new { type = "log_sync", data = logsJson };
                             MainBrowser?.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(syncMsg));
                         });
                         break;
                     case "get_app_logs":
-                        Dispatcher.Invoke(() => {
+                        Dispatcher.BeginInvoke(() => {
                             if (MainBrowser?.CoreWebView2 != null)
                             {
                                 var logs = AppLogService.Logs.ToList();
@@ -996,7 +1110,7 @@ namespace TRPServerPanel
                     case "broadcast_theme":
                         if (message.TryGetProperty("theme", out var themeDataProp))
                         {
-                            Dispatcher.Invoke(() => {
+                            Dispatcher.BeginInvoke(() => {
                                 var broadcastMsg = new { type = "theme_updated", theme = themeDataProp };
                                 MainBrowser?.CoreWebView2?.PostWebMessageAsJson(JsonSerializer.Serialize(broadcastMsg));
                             });
@@ -1090,7 +1204,7 @@ namespace TRPServerPanel
 
         private void ToggleWindowState()
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.BeginInvoke(() =>
             {
                 if (this.WindowState == WindowState.Maximized)
                     this.WindowState = WindowState.Normal;
@@ -1104,7 +1218,7 @@ namespace TRPServerPanel
             if (string.IsNullOrEmpty(name)) return;
             System.Diagnostics.Debug.WriteLine($"[HYBRID] Executing Command: {name}");
             
-            Dispatcher.Invoke(() => {
+            Dispatcher.BeginInvoke(() => {
                 switch (name)
                 {
                     case "StartServer": _ = _vm.StartServerAsync(); break;
@@ -1130,7 +1244,7 @@ namespace TRPServerPanel
                 // Extract page name (e.g. "Players.html")
                 string pageName = System.IO.Path.GetFileName(new Uri(uri).LocalPath);
 
-                Dispatcher.Invoke(() =>
+                Dispatcher.BeginInvoke(() =>
                 {
                     // Reuse existing window if already open
                     if (_pageWindows.TryGetValue(pageName, out var existing) && existing.IsLoaded)
