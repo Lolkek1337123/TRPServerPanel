@@ -68,15 +68,29 @@ public partial class App : System.Windows.Application
         // Early Boot Log
         try { File.WriteAllText("boot.log", $"[{DateTime.Now}] STAGE: Booting\n"); } catch { }
 
-        // [PRE-WARM] Start WebView2 environment initialization in background
-        _ = GetSharedEnvironmentAsync();
-
         // Global Error Handling
         AppDomain.CurrentDomain.UnhandledException += (s, ev) => ShowFatalError(ev.ExceptionObject as Exception, "AppDomain Early Crash");
         this.DispatcherUnhandledException += (s, ev) => { if (ev.Exception != null) ShowFatalError(ev.Exception, "Dispatcher UI Crash"); ev.Handled = true; };
         TaskScheduler.UnobservedTaskException += (s, ev) => { if (ev.Exception != null) ShowFatalError(ev.Exception, "Async Task Crash"); ev.SetObserved(); };
 
         base.OnStartup(e);
+
+        // Check if WebView2 runtime is installed
+        if (!IsWebView2RuntimeInstalled())
+        {
+            try { File.AppendAllText("boot.log", $"[{DateTime.Now}] STAGE: WebView2 missing. Showing installer.\n"); } catch { }
+            var installer = new WebView2InstallerWindow();
+            if (installer.ShowDialog() != true)
+            {
+                try { File.AppendAllText("boot.log", $"[{DateTime.Now}] STAGE: WebView2 installation declined or failed. Exiting.\n"); } catch { }
+                System.Windows.Application.Current.Shutdown();
+                return;
+            }
+            try { File.AppendAllText("boot.log", $"[{DateTime.Now}] STAGE: WebView2 installed successfully.\n"); } catch { }
+        }
+
+        // [PRE-WARM] Start WebView2 environment initialization in background (now safe to run)
+        _ = GetSharedEnvironmentAsync();
 
         try
         {
@@ -110,6 +124,27 @@ public partial class App : System.Windows.Application
         {
             try { File.AppendAllText("boot.log", $"[{DateTime.Now}] STAGE: FATAL ERROR - {ex.Message}\n"); } catch { }
             ShowFatalError(ex, "MainWindow Startup Failure");
+        }
+    }
+
+    public static bool IsWebView2RuntimeInstalled()
+    {
+        try
+        {
+            string version = CoreWebView2Environment.GetAvailableBrowserVersionString();
+            return !string.IsNullOrEmpty(version);
+        }
+        catch (WebView2RuntimeNotFoundException)
+        {
+            return false;
+        }
+        catch (DllNotFoundException)
+        {
+            return false;
+        }
+        catch (Exception)
+        {
+            return false;
         }
     }
 

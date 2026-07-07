@@ -1,0 +1,36 @@
+<Window x:Class="TRPServerPanel.Views.WebView2InstallerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TRP PANEL | WEBVIEW2 INSTALLER" Height="220" Width="450"
+        WindowStartupLocation="CenterScreen" 
+        Background="#0A0A0A"
+        AllowsTransparency="True" WindowStyle="None"
+        BorderThickness="1" BorderBrush="#33FF0000">
+    
+    <Border BorderBrush="#66FF0000" BorderThickness="1" Background="#0A0A0A">
+        <Grid Margin="25">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                <TextBlock Text="УСТАНОВКА КОМПОНЕНТОВ" Foreground="#FF0000" FontSize="18" FontWeight="Black" FontStyle="Italic"/>
+                <TextBlock Text="ТРЕБУЕТСЯ MICROSOFT WEBVIEW2 RUNTIME ДЛЯ ОТОБРАЖЕНИЯ ИНТЕРФЕЙСА" Foreground="#66FFFFFF" FontSize="8" FontWeight="Bold" Margin="0,2,0,0"/>
+            </StackPanel>
+
+            <!-- Progress and Status -->
+            <StackPanel Grid.Row="1" VerticalAlignment="Center">
+                <TextBlock x:Name="StatusText" Text="Подготовка к установке..." Foreground="White" FontSize="12" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                <ProgressBar x:Name="InstallProgressBar" Minimum="0" Maximum="100" Value="0" Height="4" Background="#15FFFFFF" Foreground="#FF0000" BorderThickness="0"/>
+            </StackPanel>
+
+            <!-- Actions -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                <Button x:Name="CancelButton" Content="ОТМЕНА" Click="Cancel_Click" Width="90" Height="30" Background="Transparent" Foreground="#FF0000" FontWeight="Black" BorderBrush="#33FF0000" BorderThickness="1"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>
